@@ -22,16 +22,18 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 subprojects {
-    afterEvaluate {
-        project.extensions.findByName("android")?.let { androidExt ->
-            try {
-                val method = androidExt.javaClass.getMethod("compileSdkVersion", Int::class.javaPrimitiveType)
-                method.invoke(androidExt, 36)
-            } catch (_: Exception) {}
-            try {
-                val method = androidExt.javaClass.getMethod("setCompileSdkVersion", Int::class.javaPrimitiveType)
-                method.invoke(androidExt, 36)
-            } catch (_: Exception) {}
+    if (project.name != "app") {
+        afterEvaluate {
+            project.extensions.findByName("android")?.let { androidExt ->
+                try {
+                    val method = androidExt.javaClass.getMethod("compileSdkVersion", Int::class.javaPrimitiveType)
+                    method.invoke(androidExt, 36)
+                } catch (_: Exception) {}
+                try {
+                    val method = androidExt.javaClass.getMethod("setCompileSdkVersion", Int::class.javaPrimitiveType)
+                    method.invoke(androidExt, 36)
+                } catch (_: Exception) {}
+            }
         }
     }
 }
