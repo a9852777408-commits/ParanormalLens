@@ -1,0 +1,46 @@
+name: paranormal_lens
+description: "ParanormalLens - Cross-platform AR horror & sacred symbols detector"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+  flutter: ">=3.16.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # Device & Sensors
+  camera: ^0.10.5+9
+  sensors_plus: ^4.0.2
+  geolocator: ^10.1.0
+
+  # ML & Computer Vision
+  google_mlkit_object_detection: ^0.11.0
+
+  # Dual-track Monetization abstractions
+  # purchases_flutter and google_mobile_ads are enabled during store publication (see docs/BUILD_AND_RELEASE_GUIDE.md)
+
+  # State Management & Architecture
+  intl: ^0.20.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/audio/
+
+  # Custom Hardware-Accelerated Fragment Shaders (Impeller/Skia)
+  shaders:
+    - shaders/green_phosphor_grain.frag
+    - shaders/thermal_palette.frag
+    - shaders/crt_scanline_noise.frag
+    - shaders/procedural_shadow.frag
