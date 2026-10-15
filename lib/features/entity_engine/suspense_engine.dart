@@ -34,10 +34,16 @@ class SuspenseEngine extends ChangeNotifier {
 
     // Listen to accelerometer for phone stillness
     _accelSubscription?.cancel();
-    _accelSubscription = userAccelerometerEvents.listen((UserAccelerometerEvent event) {
-      double motionMagnitude = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
-      _isPhoneStill = motionMagnitude < 0.85; // Phone is held relatively still
-    });
+    try {
+      _accelSubscription = userAccelerometerEvents.listen((UserAccelerometerEvent event) {
+        double motionMagnitude = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+        _isPhoneStill = motionMagnitude < 0.85; // Phone is held relatively still
+      }, onError: (err) {
+        debugPrint('[Sensor] Accelerometer event error: $err');
+      });
+    } catch (e) {
+      debugPrint('[Sensor] Accelerometer failed to start: $e');
+    }
 
     // Pacing loop
     _pacingTimer?.cancel();

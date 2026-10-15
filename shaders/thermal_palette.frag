@@ -3,9 +3,14 @@
 
 uniform vec2 uResolution;
 uniform float uTime;
-uniform sampler2D uTexture;
 
 out vec4 fragColor;
+
+float hash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
 
 // Smooth Ironbow Thermal false-color mapping
 vec3 ironbow(float t) {
@@ -20,17 +25,11 @@ vec3 ironbow(float t) {
 void main() {
     vec2 uv = FlutterFragCoord().xy / uResolution;
 
-    vec4 src = texture(uTexture, uv);
+    // Thermal simulation waves & sensor grain
+    float thermalWave = sin(uv.y * 12.0 + uTime * 2.0) * cos(uv.x * 10.0 - uTime * 1.5) * 0.2 + 0.5;
+    float grain = (hash(uv * 300.0 + fract(uTime * 19.0)) - 0.5) * 0.12;
 
-    // Convert optical brightness into simulated infrared heat
-    float heat = dot(src.rgb, vec3(0.299, 0.587, 0.114));
-    heat = clamp(heat * 1.35, 0.0, 1.0);
+    vec3 heatColor = ironbow(thermalWave + grain);
 
-    vec3 thermalCol = ironbow(heat);
-
-    // Subtle thermal sensor grid
-    float grid = (mod(floor(uv.x * uResolution.x), 2.0) == 0.0 &&
-                  mod(floor(uv.y * uResolution.y), 2.0) == 0.0) ? 0.95 : 1.0;
-
-    fragColor = vec4(thermalCol * grid, 1.0);
+    fragColor = vec4(heatColor, 0.40);
 }

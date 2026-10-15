@@ -43,15 +43,21 @@ class ProceduralEntitySpawner extends ChangeNotifier {
 
   void startCameraMotionMonitoring() {
     _gyroSubscription?.cancel();
-    _gyroSubscription = gyroscopeEvents.listen((GyroscopeEvent event) {
-      double rotationRate = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+    try {
+      _gyroSubscription = gyroscopeEvents.listen((GyroscopeEvent event) {
+        double rotationRate = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
 
-      if (rotationRate > 1.8 && _currentEntity == null) {
-        if (Random().nextDouble() < 0.35) {
-          _spawnContextualOrRandomEntity();
+        if (rotationRate > 1.8 && _currentEntity == null) {
+          if (Random().nextDouble() < 0.35) {
+            _spawnContextualOrRandomEntity();
+          }
         }
-      }
-    });
+      }, onError: (err) {
+        debugPrint('[Sensor] Gyroscope event error: $err');
+      });
+    } catch (e) {
+      debugPrint('[Sensor] Gyroscope monitoring failed to start: $e');
+    }
   }
 
   /// 1. Triggered when Computer Vision spots a window in the upper frame

@@ -3,7 +3,6 @@
 
 uniform vec2 uResolution;
 uniform float uTime;
-uniform sampler2D uTexture;
 
 out vec4 fragColor;
 
@@ -16,30 +15,19 @@ float hash(vec2 p) {
 void main() {
     vec2 uv = FlutterFragCoord().xy / uResolution;
 
-    // 1. Hardware-friendly downsampled low-res crunch (480p emulation)
-    vec2 lowResGrid = uResolution / 3.0;
-    vec2 steppedUV = floor(uv * lowResGrid) / lowResGrid;
+    // 1. CRT Scanlines
+    float scanline = sin(uv.y * uResolution.y * 1.5) * 0.15;
 
-    vec4 src = texture(uTexture, steppedUV);
+    // 2. High-frequency analog grain noise
+    float grain = hash(uv * 500.0 + fract(uTime * 37.0)) * 0.28;
 
-    // 2. Luminance calculation
-    float lum = dot(src.rgb, vec3(0.299, 0.587, 0.114)) * 2.2;
-
-    // 3. Phosphor Green grading
-    vec3 greenPhosphor = lum * vec3(0.12, 0.98, 0.22);
-
-    // 4. Digital Sensor Grain
-    float grain = (hash(steppedUV * 1200.0 + fract(uTime * 41.7)) - 0.5) * 0.28;
-    greenPhosphor += grain;
-
-    // 5. Scanlines
-    float scanline = sin(uv.y * 600.0) * 0.08;
-    greenPhosphor -= scanline;
-
-    // 6. Vignette
+    // 3. Vignette
     vec2 center = uv - 0.5;
-    float vignette = 1.0 - dot(center, center) * 1.2;
-    greenPhosphor *= clamp(vignette, 0.0, 1.0);
+    float vignette = 1.0 - dot(center, center) * 1.8;
+    vignette = clamp(vignette, 0.2, 1.0);
 
-    fragColor = vec4(greenPhosphor, 1.0);
+    // 4. Phosphor Green overlay tint
+    vec3 greenPhosphor = vec3(0.08, 0.85, 0.22) * (0.35 + scanline + grain) * vignette;
+
+    fragColor = vec4(greenPhosphor, 0.42);
 }

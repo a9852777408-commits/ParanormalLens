@@ -28,12 +28,18 @@ class PrankEngine extends ChangeNotifier {
 
     // Trigger A: Accelerometer violent shake trigger
     _shakeSubscription?.cancel();
-    _shakeSubscription = userAccelerometerEvents.listen((event) {
-      double acceleration = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
-      if (acceleration > 3.2) { // Violent jerk / shake detected
-        triggerJumpscare();
-      }
-    });
+    try {
+      _shakeSubscription = userAccelerometerEvents.listen((event) {
+        double acceleration = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
+        if (acceleration > 3.2) { // Violent jerk / shake detected
+          triggerJumpscare();
+        }
+      }, onError: (err) {
+        debugPrint('[Prank] Accelerometer event error: $err');
+      });
+    } catch (e) {
+      debugPrint('[Prank] Accelerometer failed to start: $e');
+    }
 
     // Trigger B: Timer countdown
     _countdownTimer?.cancel();

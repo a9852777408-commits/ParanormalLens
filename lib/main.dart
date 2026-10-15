@@ -13,22 +13,8 @@ import 'features/prank/prank_engine.dart';
 import 'features/vision/sacred_relic_detector.dart';
 import 'core/services/audio_service.dart';
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 1. Initialize Passive Tier Geo-Adaptation (zero permissions)
-  GeoAdaptationService().initializePassiveTier();
-
-  // 2. Initialize Camera & Hardware GLSL Shaders
-  await CameraShaderController().initialize();
-
-  // 3. Start 5 Hz Computer Vision Loop & Spawner
-  SacredRelicDetector().startInferenceLoop();
-  ProceduralEntitySpawner().startCameraMotionMonitoring();
-
-  // 4. Initialize Procedural Audio Landscape
-  AudioService().initialize();
-
   runApp(const ParanormalLensApp());
 }
 
@@ -72,11 +58,45 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
   @override
   void initState() {
     super.initState();
-    SuspenseEngine().startPacingSession();
     _tickerController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 1000),
     )..repeat();
+
+    _initializeSubsystems();
+  }
+
+  void _initializeSubsystems() async {
+    try {
+      GeoAdaptationService().initializePassiveTier();
+    } catch (e) {
+      debugPrint('[Init] Geo error: $e');
+    }
+    try {
+      await CameraShaderController().initialize();
+    } catch (e) {
+      debugPrint('[Init] Camera error: $e');
+    }
+    try {
+      SacredRelicDetector().startInferenceLoop();
+    } catch (e) {
+      debugPrint('[Init] Relic detector error: $e');
+    }
+    try {
+      ProceduralEntitySpawner().startCameraMotionMonitoring();
+    } catch (e) {
+      debugPrint('[Init] Spawner error: $e');
+    }
+    try {
+      AudioService().initialize();
+    } catch (e) {
+      debugPrint('[Init] Audio error: $e');
+    }
+    try {
+      SuspenseEngine().startPacingSession();
+    } catch (e) {
+      debugPrint('[Init] Suspense error: $e');
+    }
   }
 
   @override
@@ -115,9 +135,33 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
           AnimatedBuilder(
             animation: Listenable.merge([camera, spawner, _tickerController]),
             builder: (context, child) {
-              if (!camera.isInitialized || camera.controller == null) {
+              final isCameraReady = camera.isInitialized &&
+                  camera.controller != null &&
+                  camera.controller!.value.isInitialized;
+
+              if (!isCameraReady) {
                 return Center(
-                  child: CircularProgressIndicator(color: profile.aesthetic.accent),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(color: profile.aesthetic.accent),
+                      const SizedBox(height: 16),
+                      Text(
+                        'ПОДКЛЮЧЕНИЕ СЕНСОРОВ...',
+                        style: TextStyle(
+                          color: profile.aesthetic.accent,
+                          letterSpacing: 2.0,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: () => camera.initialize(),
+                        child: const Text('Повторить подключение', style: TextStyle(color: Colors.white54)),
+                      ),
+                    ],
+                  ),
                 );
               }
 
