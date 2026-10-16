@@ -27,7 +27,7 @@ class ParanormalLensApp extends StatelessWidget {
     final profile = geo.activeProfile;
 
     return MaterialApp(
-      title: 'ParanormalLens',
+      title: 'PL',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -139,36 +139,15 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                   camera.controller != null &&
                   camera.controller!.value.isInitialized;
 
-              if (!isCameraReady) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(color: profile.aesthetic.accent),
-                      const SizedBox(height: 16),
-                      Text(
-                        'ПОДКЛЮЧЕНИЕ СЕНСОРОВ...',
-                        style: TextStyle(
-                          color: profile.aesthetic.accent,
-                          letterSpacing: 2.0,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: () => camera.initialize(),
-                        child: const Text('Повторить подключение', style: TextStyle(color: Colors.white54)),
-                      ),
-                    ],
-                  ),
-                );
-              }
-
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  CameraPreview(camera.controller!),
+                  if (isCameraReady)
+                    CameraPreview(camera.controller!)
+                  else ...[
+                    Container(color: const Color(0xFF0D1410)),
+                    CustomPaint(painter: SimulatedViewfinderPainter()),
+                  ],
                   CustomPaint(
                     painter: ShaderPostProcessingPainter(
                       shader: camera.getActiveShader(),
@@ -177,6 +156,36 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                       shadowShader: camera.proceduralShadowShader,
                     ),
                   ),
+                  if (!isCameraReady)
+                    Positioned(
+                      top: 70,
+                      left: 16,
+                      right: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: profile.aesthetic.accent.withOpacity(0.5)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.videocam_off, color: profile.aesthetic.accent, size: 16),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Камера не обнаружена (режим эмулятора). Визор активен.',
+                                style: TextStyle(color: Colors.white70, fontSize: 11),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => camera.initialize(),
+                              child: const Text('Повторить', style: TextStyle(fontSize: 11)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               );
             },
@@ -196,7 +205,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                         Icon(Icons.lens_blur, color: profile.aesthetic.accent, size: 20),
                         const SizedBox(width: 8),
                         Text(
-                          'PARANORMAL LENS',
+                          'PL',
                           style: TextStyle(
                             color: profile.aesthetic.accent,
                             fontWeight: FontWeight.bold,
@@ -394,3 +403,44 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     );
   }
 }
+
+/// Fallback painter that renders an authentic radar crosshair and grid when camera hardware is unavailable
+class SimulatedViewfinderPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gridPaint = Paint()
+      ..color = const Color(0xFF1B2E24)
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    const step = 48.0;
+    for (double x = 0; x < size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (double y = 0; y < size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+
+    final crossPaint = Paint()
+      ..color = const Color(0xFF335C45)
+      ..strokeWidth = 1.5;
+
+    canvas.drawLine(Offset(cx - 24, cy), Offset(cx + 24, cy), crossPaint);
+    canvas.drawLine(Offset(cx, cy - 24), Offset(cx, cy + 24), crossPaint);
+
+    final ringPaint = Paint()
+      ..color = const Color(0xFF264534)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    canvas.drawCircle(Offset(cx, cy), 48, ringPaint);
+    canvas.drawCircle(Offset(cx, cy), 110, ringPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+

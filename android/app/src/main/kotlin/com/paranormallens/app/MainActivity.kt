@@ -1,4 +1,4 @@
-package com.example.paranormal_lens
+package com.paranormallens.app
 
 import io.flutter.embedding.android.FlutterActivity
 

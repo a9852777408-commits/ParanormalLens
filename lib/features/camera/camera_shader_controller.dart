@@ -31,32 +31,40 @@ class CameraShaderController extends ChangeNotifier {
   ui.FragmentShader? _proceduralShadowShader;
 
   Future<void> initialize() async {
+    // 1. Always load fragment shaders first so UI and shaders function even without a camera
+    await _loadFragmentShaders();
+
+    // 2. Safely initialize hardware camera
     try {
       _availableCameras = await availableCameras();
-      if (_availableCameras.isEmpty) {
-        debugPrint('[Camera] No hardware cameras found.');
-        return;
+      if (_availableCameras.isNotEmpty) {
+        await _setupCameraController(_availableCameras[_selectedCameraIndex]);
+      } else {
+        debugPrint('[Camera] No hardware cameras detected.');
       }
-
-      await _setupCameraController(_availableCameras[_selectedCameraIndex]);
-      await _loadFragmentShaders();
-      _isInitialized = true;
-      notifyListeners();
     } catch (e) {
-      debugPrint('[Camera] Initialization error: $e');
+      debugPrint('[Camera] Camera hardware initialization error: $e');
     }
+
+    _isInitialized = true;
+    notifyListeners();
   }
 
   Future<void> _setupCameraController(CameraDescription description) async {
-    await _cameraController?.dispose();
-    _cameraController = CameraController(
-      description,
-      ResolutionPreset.medium, // 480p / 720p for 60 FPS mobile efficiency
-      enableAudio: false,
-      imageFormatGroup: ImageFormatGroup.yuv420,
-    );
+    try {
+      await _cameraController?.dispose();
+      _cameraController = CameraController(
+        description,
+        ResolutionPreset.medium, // 480p / 720p for 60 FPS mobile efficiency
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.yuv420,
+      );
 
-    await _cameraController!.initialize();
+      await _cameraController!.initialize();
+    } catch (e) {
+      debugPrint('[Camera] Error initializing CameraController: $e');
+      _cameraController = null;
+    }
   }
 
   Future<void> _loadFragmentShaders() async {

@@ -8,20 +8,20 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Features -->
-    <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <!-- Features: set optional so all emulators and phones can install & launch -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.compass" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
 
     <application
-        android:label="ParanormalLens"
+        android:label="PL"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:hardwareAccelerated="true">
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.paranormallens.app.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/LaunchTheme"

@@ -1,5 +1,5 @@
 name: paranormal_lens
-description: "ParanormalLens - Cross-platform AR horror & sacred symbols detector"
+description: "PL - Cross-platform AR horror & sacred symbols detector"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -17,12 +17,6 @@ dependencies:
   camera: ^0.10.5+9
   sensors_plus: ^4.0.2
   geolocator: ^10.1.0
-
-  # ML & Computer Vision
-  google_mlkit_object_detection: ^0.11.0
-
-  # Dual-track Monetization abstractions
-  # purchases_flutter and google_mobile_ads are enabled during store publication (see docs/BUILD_AND_RELEASE_GUIDE.md)
 
   # State Management & Architecture
   intl: ^0.20.3

@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build ParanormalLens APK
+    name: Build PL APK
     runs-on: ubuntu-latest
 
     steps:
@@ -38,37 +38,46 @@ jobs:
       - name: Build Release APK
         run: flutter build apk --release --no-shrink
 
-      - name: Upload Debug APK Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ParanormalLens-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+      - name: Prepare Named PL APK Files
+        run: |
+          mkdir -p build/dist
+          cp build/app/outputs/flutter-apk/app-debug.apk build/dist/PL.apk
+          cp build/app/outputs/flutter-apk/app-debug.apk build/dist/PL-debug.apk
+          cp build/app/outputs/flutter-apk/app-release.apk build/dist/PL-release.apk
 
-      - name: Upload Release APK Artifact
+      - name: Upload PL APK Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ParanormalLens-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: PL-apk
+          path: build/dist/PL.apk
+
+      - name: Upload PL Release APK Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PL-release-apk
+          path: build/dist/PL-release.apk
 
       - name: Publish GitHub Release
         continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0
-          name: "ParanormalLens v1.0.0 APK"
+          tag_name: v1.0.1
+          name: "PL v1.0.1 (Stable APK)"
           body: |
-            ### 👻 ParanormalLens v1.0.0 - Test Build
-            - Hardware GLSL post-processing camera filters (Night Vision, Thermal Ironbow, EVP CRT static)
-            - Procedural shadow entities (Slender, Lurker, Window Inverted Raven, Cemetery Watcher)
-            - 5 Hz Sacred Relic Computer Vision detection & banishment
-            - Stealth jumpscare prank mode
-            - Procedural soundscapes (ambient drone, geiger clicks, holy bells)
+            ### 👻 PL v1.0.1 - Stable Build
+            - **Fixed Startup Crash**: Fixed Android package namespace mismatch with MainActivity.
+            - **Renamed to PL**: App and output APK file named `PL.apk`.
+            - **Hardware & Emulator Support**: Added simulated viewfinder fallback when camera is unavailable.
+            - **Lightweight APK**: Removed unneeded native Google Play Services binaries, reducing download size.
             
-            **Installation:** Download `app-debug.apk` directly to your Android smartphone and open to install.
+            **Direct Download:**
+            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.1/PL.apk)
+            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.1/PL-release.apk)
           files: |
-            build/app/outputs/flutter-apk/app-debug.apk
-            build/app/outputs/flutter-apk/app-release.apk
+            build/dist/PL.apk
+            build/dist/PL-debug.apk
+            build/dist/PL-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
