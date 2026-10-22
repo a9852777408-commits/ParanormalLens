@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
-import '../../core/models/regional_profile.dart';
 import '../../core/services/geo_adaptation_service.dart';
 
 typedef SacredRelicCallback = void Function(Rect boundingBox, String objectLabel, Color glowColor);

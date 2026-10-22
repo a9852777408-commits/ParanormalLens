@@ -2,33 +2,59 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Master audio controller for ParanormalLens:
-/// Coordinates procedural ambient drone, reactive EMF Geiger clicks,
-/// entity-specific soundscapes, and prank jumpscare audio.
+/// Master audio controller for ParanormalLens / PL:
+/// Connects to native Android SoundPool and MediaPlayer for zero-latency horror sounds
 class AudioService {
   static final AudioService _instance = AudioService._internal();
   factory AudioService() => _instance;
   AudioService._internal();
 
-  Timer? _geigerLoopTimer;
-  double _currentEmfIntensity = 0.0; // 0.0 to 1.0
+  static const MethodChannel _channel = MethodChannel('com.paranormallens.app/audio');
 
-  // Asset paths
-  static const String sfxAmbient = 'assets/audio/ambient_drone.wav';
-  static const String sfxGeiger = 'assets/audio/geiger_tick.wav';
-  static const String sfxRaven = 'assets/audio/raven_window.wav';
-  static const String sfxWhisper = 'assets/audio/whisper_chills.wav';
-  static const String sfxHolyBell = 'assets/audio/holy_dawn_bell.wav';
-  static const String sfxScreamer = 'assets/audio/jumpscare_screech.wav';
+  Timer? _geigerLoopTimer;
+  double _currentEmfIntensity = 0.0;
+  bool _isMuted = false;
+
+  bool get isMuted => _isMuted;
 
   void initialize() {
-    debugPrint('[Audio] Audio Service initialized with 6 synthesized horror soundscapes.');
     playAmbientDrone();
   }
 
-  void playAmbientDrone() {
-    debugPrint('[Audio] Ambient 50Hz drone playing in background.');
-    // In production, audio player loops sfxAmbient at 25% volume
+  void toggleMute() {
+    _isMuted = !_isMuted;
+    if (_isMuted) {
+      stopAmbient();
+      _geigerLoopTimer?.cancel();
+    } else {
+      playAmbientDrone();
+    }
+  }
+
+  Future<void> playAmbientDrone() async {
+    if (_isMuted) return;
+    try {
+      await _channel.invokeMethod('playAmbient');
+    } catch (e) {
+      debugPrint('[Audio] Error playing ambient drone: $e');
+    }
+  }
+
+  Future<void> stopAmbient() async {
+    try {
+      await _channel.invokeMethod('stopAmbient');
+    } catch (e) {
+      debugPrint('[Audio] Error stopping ambient: $e');
+    }
+  }
+
+  Future<void> playSfx(String name) async {
+    if (_isMuted) return;
+    try {
+      await _channel.invokeMethod('playSfx', {'name': name});
+    } catch (e) {
+      debugPrint('[Audio] Error playing SFX $name: $e');
+    }
   }
 
   /// Updates radiation / EMF intensity and modulates Geiger clicking frequency
@@ -36,9 +62,8 @@ class AudioService {
     _currentEmfIntensity = intensity.clamp(0.0, 1.0);
     _geigerLoopTimer?.cancel();
 
-    if (_currentEmfIntensity > 0.15) {
-      // Faster intervals as EMF spikes (from 800ms down to 60ms)
-      int intervalMs = (800 - (_currentEmfIntensity * 740)).round();
+    if (_currentEmfIntensity > 0.12 && !_isMuted) {
+      int intervalMs = (700 - (_currentEmfIntensity * 630)).round().clamp(70, 800);
       _geigerLoopTimer = Timer.periodic(Duration(milliseconds: intervalMs), (timer) {
         _playGeigerTick();
       });
@@ -46,32 +71,30 @@ class AudioService {
   }
 
   void _playGeigerTick() {
-    // Plays quick Geiger click sound + light haptic tick
     HapticFeedback.selectionClick();
+    playSfx('geiger_tick');
   }
 
   void playRavenWindowFlight() {
-    debugPrint('[Audio] Triggered: Window Raven pecks glass and flies downwards.');
-    // Plays sfxRaven
+    playSfx('raven_window');
   }
 
   void playEntityWhispers() {
-    debugPrint('[Audio] Triggered: Spatial entity whispers.');
-    // Plays sfxWhisper
+    playSfx('whisper_chills');
   }
 
   void playHolyDawnBell() {
-    debugPrint('[Audio] Triggered: Jerusalem church bells chime.');
-    // Plays sfxHolyBell
+    HapticFeedback.mediumImpact();
+    playSfx('holy_dawn_bell');
   }
 
   void playJumpscareScreech() {
-    debugPrint('[Audio] Triggered: Deafening 100% volume jumpscare screech!');
-    // Plays sfxScreamer + heavy impact
     HapticFeedback.heavyImpact();
+    playSfx('jumpscare_screech');
   }
 
   void stop() {
     _geigerLoopTimer?.cancel();
+    stopAmbient();
   }
 }

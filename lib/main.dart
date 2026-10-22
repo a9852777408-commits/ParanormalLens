@@ -1,12 +1,9 @@
-import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'core/models/regional_profile.dart';
 import 'core/services/geo_adaptation_service.dart';
-import 'core/services/monetization_service.dart';
 import 'features/camera/camera_shader_controller.dart';
 import 'features/bestiary/bestiary_screen.dart';
-import 'features/monetization/paywall_screen.dart';
 import 'features/entity_engine/procedural_entity_spawner.dart';
 import 'features/entity_engine/suspense_engine.dart';
 import 'features/prank/prank_engine.dart';
@@ -110,9 +107,10 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     if (_secretPrankTapCount >= 5) {
       _secretPrankTapCount = 0;
       PrankEngine().armPrank(15);
+      AudioService().playJumpscareScreech();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ [STEALTH PRANK ARMED: 15s]'),
+          content: Text('⚠️ [СКРЫТЫЙ СКРИМЕР АКТИВИРОВАН: 15 сек]'),
           duration: Duration(seconds: 2),
         ),
       );
@@ -125,13 +123,13 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     final camera = CameraShaderController();
     final spawner = ProceduralEntitySpawner();
     final prank = PrankEngine();
-    final suspense = SuspenseEngine();
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. Live Camera Stream + GLSL Shader Post-Processing
+          // 1. Live Camera Stream + GPU Color Matrix + Shaders
           AnimatedBuilder(
             animation: Listenable.merge([camera, spawner, _tickerController]),
             builder: (context, child) {
@@ -142,12 +140,15 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (isCameraReady)
-                    CameraPreview(camera.controller!)
-                  else ...[
-                    Container(color: const Color(0xFF0D1410)),
-                    CustomPaint(painter: SimulatedViewfinderPainter()),
-                  ],
+                  // Base Camera preview filtered with hardware GPU Color Matrix
+                  ColorFiltered(
+                    colorFilter: ColorFilter.matrix(camera.activeColorMatrix),
+                    child: isCameraReady
+                        ? CameraPreview(camera.controller!)
+                        : const SimulatedViewfinder(),
+                  ),
+
+                  // GLSL Shader Post-Processing (Grain, Scanlines, Procedural Shadows)
                   CustomPaint(
                     painter: ShaderPostProcessingPainter(
                       shader: camera.getActiveShader(),
@@ -156,9 +157,14 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                       shadowShader: camera.proceduralShadowShader,
                     ),
                   ),
+
+                  // Dynamic Authentic Mode Overlays matching reference photo
+                  _buildModeSpecificOverlay(camera.activeFilter),
+
+                  // Offline / Missing camera banner
                   if (!isCameraReady)
                     Positioned(
-                      top: 70,
+                      top: 75,
                       left: 16,
                       right: 16,
                       child: Container(
@@ -174,7 +180,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                             const SizedBox(width: 8),
                             const Expanded(
                               child: Text(
-                                'Камера не обнаружена (режим эмулятора). Визор активен.',
+                                'Камера не подключена (эмулятор). Визор активен.',
                                 style: TextStyle(color: Colors.white70, fontSize: 11),
                               ),
                             ),
@@ -191,177 +197,270 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
             },
           ),
 
-          // 2. Top HUD Bar
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // 2. Top HUD Bar (Positioned strictly at top)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 6.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Brand & Secret Tap Header
+                    GestureDetector(
+                      onTap: _onHeaderTapped,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: profile.aesthetic.accent.withOpacity(0.4)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.radar, color: profile.aesthetic.accent, size: 18),
+                            const SizedBox(width: 6),
+                            Text(
+                              'PL',
+                              style: TextStyle(
+                                color: profile.aesthetic.accent,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.5,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Test mode: All Features Unlocked Badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF2A9D8F), Color(0xFF264653)],
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF2A9D8F)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.lock_open, color: Colors.white, size: 13),
+                          SizedBox(width: 4),
+                          Text(
+                            'ВСЕ ФУНКЦИИ ОТКРЫТЫ',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Hardware Quick Controls
+                    Row(
+                      children: [
+                        IconButton(
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            camera.isTorchOn ? Icons.flashlight_on : Icons.flashlight_off,
+                            color: camera.isTorchOn ? Colors.amber : Colors.white70,
+                            size: 20,
+                          ),
+                          onPressed: () => camera.toggleTorch(),
+                        ),
+                        IconButton(
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          padding: EdgeInsets.zero,
+                          icon: Icon(
+                            AudioService().isMuted ? Icons.volume_off : Icons.volume_up,
+                            color: AudioService().isMuted ? Colors.redAccent : profile.aesthetic.accent,
+                            size: 20,
+                          ),
+                          onPressed: () => setState(() => AudioService().toggleMute()),
+                        ),
+                        IconButton(
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          padding: EdgeInsets.zero,
+                          icon: Icon(Icons.flip_camera_ios, color: profile.aesthetic.accent, size: 20),
+                          onPressed: () => camera.toggleCameraLens(),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // 3. Bottom Controls (Zero-Overflow Responsive Layout)
+          Positioned(
+            bottom: 12,
+            left: 10,
+            right: 10,
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  GestureDetector(
-                    onTap: _onHeaderTapped,
+                  // Row 1: 4 Filter Switcher Tabs (25% equal width each)
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black87,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.white12),
+                    ),
                     child: Row(
                       children: [
-                        Icon(Icons.lens_blur, color: profile.aesthetic.accent, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          'PL',
-                          style: TextStyle(
-                            color: profile.aesthetic.accent,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                          ),
+                        _buildFilterTab(
+                          label: 'Обычный',
+                          icon: Icons.camera_alt,
+                          filterType: ActiveFilterType.normal,
+                          camera: camera,
+                          profile: profile,
+                        ),
+                        _buildFilterTab(
+                          label: 'VHS',
+                          icon: Icons.videocam,
+                          filterType: ActiveFilterType.vhs,
+                          camera: camera,
+                          profile: profile,
+                        ),
+                        _buildFilterTab(
+                          label: 'Ночной',
+                          icon: Icons.visibility,
+                          filterType: ActiveFilterType.nightVision,
+                          camera: camera,
+                          profile: profile,
+                        ),
+                        _buildFilterTab(
+                          label: 'Термо',
+                          icon: Icons.thermostat,
+                          filterType: ActiveFilterType.thermal,
+                          camera: camera,
+                          profile: profile,
                         ),
                       ],
                     ),
                   ),
+
+                  const SizedBox(height: 8),
+
+                  // Row 2: Action Toolbar (Радар, Бестиарий, Освятить - 33% equal width each)
                   Row(
                     children: [
-                      // PRO Badge button
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const PaywallScreen()),
-                          );
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [profile.aesthetic.accent, profile.aesthetic.primary],
+                      // Radar Button
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF14241B),
+                            foregroundColor: profile.aesthetic.accent,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(color: profile.aesthetic.accent.withOpacity(0.5)),
                             ),
-                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.star, color: Colors.black, size: 13),
-                              SizedBox(width: 4),
-                              Text(
-                                'PRO',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                          onPressed: () async {
+                            final success = await GeoAdaptationService().activateGeomagneticRadar();
+                            AudioService().updateEmfLevel(0.85);
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(success
+                                    ? '📡 Радар сканирует аномалии в радиусе 500м...'
+                                    : '⚠️ Включите геолокацию на устройстве'),
+                                duration: const Duration(seconds: 2),
                               ),
-                            ],
+                            );
+                          },
+                          icon: const Icon(Icons.radar, size: 16),
+                          label: const Text('Радар', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Bestiary Button
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1E1E2E),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: const BorderSide(color: Colors.white24),
+                            ),
                           ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const BestiaryScreen()),
+                            );
+                          },
+                          icon: const Icon(Icons.auto_stories, size: 16),
+                          label: const Text('Бестиарий', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                         ),
                       ),
-                      IconButton(
-                        icon: Icon(Icons.flip_camera_ios, color: profile.aesthetic.accent, size: 20),
-                        onPressed: () => camera.toggleCameraLens(),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: profile.aesthetic.primary,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: profile.aesthetic.accent.withOpacity(0.4)),
-                        ),
-                        child: Text(
-                          profile.aesthetic.themeName,
-                          style: TextStyle(color: profile.aesthetic.accent, fontSize: 11),
+                      const SizedBox(width: 8),
+
+                      // Exorcism Banish Button
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: profile.aesthetic.accent,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          onPressed: () {
+                            AudioService().playHolyDawnBell();
+                            spawner.banishActiveEntity(onComplete: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('✨ Сущность изгнана священным светом!'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            });
+                          },
+                          icon: const Icon(Icons.flare, size: 16),
+                          label: const Text('Освятить', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
+                  ),
+
+                  const SizedBox(height: 6),
+                  const Text(
+                    'ParanormalLens • Тестовый режим • Все сенсоры активны',
+                    style: TextStyle(color: Colors.white30, fontSize: 8),
                   ),
                 ],
               ),
             ),
           ),
 
-          // 3. Bottom Controls & Filter Mode Switcher
-          Positioned(
-            bottom: 24,
-            left: 16,
-            right: 16,
-            child: Column(
-              children: [
-                // Filter Switcher Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildFilterButton('NightVision', Icons.visibility, ActiveFilterType.nightVision),
-                    const SizedBox(width: 8),
-                    _buildFilterButton('Thermal', Icons.thermostat, ActiveFilterType.thermal),
-                    const SizedBox(width: 8),
-                    _buildFilterButton('EVP Static', Icons.waves, ActiveFilterType.evpStatic),
-                    const SizedBox(width: 8),
-                    _buildFilterButton('Normal', Icons.camera_alt, ActiveFilterType.normal),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Radar & Relic Action Bar
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: profile.aesthetic.primary,
-                        foregroundColor: profile.aesthetic.accent,
-                      ),
-                      onPressed: () => GeoAdaptationService().activateGeomagneticRadar(),
-                      icon: const Icon(Icons.radar, size: 16),
-                      label: const Text('Радар (500м)'),
-                    ),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: profile.aesthetic.primary,
-                        foregroundColor: Colors.white,
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const BestiaryScreen()),
-                        );
-                      },
-                      icon: const Icon(Icons.auto_stories, size: 16),
-                      label: const Text('Бестиарий'),
-                    ),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: profile.aesthetic.accent,
-                        foregroundColor: Colors.black,
-                      ),
-                      onPressed: () {
-                        spawner.banishActiveEntity(onComplete: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('✨ Сущность изгнана священным светом!')),
-                          );
-                        });
-                      },
-                      icon: const Icon(Icons.flare, size: 16),
-                      label: const Text('Освятить'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-
-                // Legal Compliance Disclaimer
-                const Text(
-                  'For entertainment purposes only. App simulates paranormal detections.',
-                  style: TextStyle(color: Colors.white30, fontSize: 9),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-
-          // 4. Jumpscare Overlay
+          // 4. Jumpscare Screamer Overlay
           AnimatedBuilder(
             animation: prank,
             builder: (context, child) {
               if (prank.state == PrankState.triggered) {
                 return Container(
                   color: Colors.red.shade900,
-                  child: Center(
+                  child: const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
+                      children: [
                         Icon(Icons.sentiment_very_dissatisfied, size: 140, color: Colors.white),
                         SizedBox(height: 16),
                         Text(
@@ -386,25 +485,288 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     );
   }
 
-  Widget _buildFilterButton(String label, IconData icon, ActiveFilterType filterType) {
-    final camera = CameraShaderController();
+  Widget _buildFilterTab({
+    required String label,
+    required IconData icon,
+    required ActiveFilterType filterType,
+    required CameraShaderController camera,
+    required RegionalProfile profile,
+  }) {
     final isSelected = camera.activeFilter == filterType;
-    final profile = GeoAdaptationService().activeProfile;
 
-    return OutlinedButton.icon(
-      style: OutlinedButton.styleFrom(
-        backgroundColor: isSelected ? profile.aesthetic.accent : Colors.black54,
-        foregroundColor: isSelected ? Colors.black : Colors.white70,
-        side: BorderSide(color: profile.aesthetic.accent.withOpacity(0.6)),
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          camera.setFilter(filterType);
+          AudioService().playSfx('geiger_tick');
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? profile.aesthetic.accent : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: isSelected ? Colors.black : Colors.white70),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.black : Colors.white70,
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.w900 : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      onPressed: () => camera.setFilter(filterType),
-      icon: Icon(icon, size: 16),
-      label: Text(label, style: const TextStyle(fontSize: 12)),
+    );
+  }
+
+  /// Authentic OSD overlays matching the 4 quadrants of horror_camera_filters_1791799886078.jpg
+  Widget _buildModeSpecificOverlay(ActiveFilterType mode) {
+    switch (mode) {
+      case ActiveFilterType.normal:
+        // Top-Left: Clean 1080p Moody Viewfinder + Framing Brackets + Vignette
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 0.95,
+                  colors: [Colors.transparent, Color(0xAA000000)],
+                ),
+              ),
+            ),
+            const Positioned(
+              top: 55,
+              left: 18,
+              child: Text(
+                'NORMAL MODE • 1080p MOODY',
+                style: TextStyle(color: Colors.white70, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
+              ),
+            ),
+            Center(
+              child: Container(
+                width: 160,
+                height: 160,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white24, width: 1.0),
+                ),
+                child: const Center(
+                  child: Icon(Icons.add, color: Colors.white38, size: 22),
+                ),
+              ),
+            ),
+          ],
+        );
+
+      case ActiveFilterType.vhs:
+        // Top-Right: Low-Res VHS (360p Vintage, REC red dot, timestamp, SP)
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned(
+              top: 55,
+              left: 18,
+              child: Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.redAccent),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'REC',
+                    style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                  ),
+                  const SizedBox(width: 16),
+                  const Text(
+                    'NOV 13  12:44:31',
+                    style: TextStyle(color: Colors.white, fontFamily: 'monospace', fontSize: 12, letterSpacing: 1.0),
+                  ),
+                ],
+              ),
+            ),
+            const Positioned(
+              top: 55,
+              right: 18,
+              child: Text(
+                'SP  -0:12:44',
+                style: TextStyle(color: Colors.white70, fontFamily: 'monospace', fontSize: 11),
+              ),
+            ),
+            const Positioned(
+              bottom: 110,
+              left: 18,
+              child: Text(
+                'TRACKING: AUTO\n360p VINTAGE',
+                style: TextStyle(color: Colors.white54, fontFamily: 'monospace', fontSize: 10),
+              ),
+            ),
+          ],
+        );
+
+      case ActiveFilterType.nightVision:
+        // Bottom-Left: Military PVS-14 Monocular Circular Lens Aperture Vignette + Green Phosphor OSD
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            // Circular Optical Aperture Goggle Mask
+            Container(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 0.72,
+                  colors: [Colors.transparent, Color(0x66000000), Color(0xF8000000)],
+                  stops: [0.65, 0.85, 1.0],
+                ),
+              ),
+            ),
+            const Positioned(
+              top: 55,
+              left: 18,
+              child: Text(
+                'NIGHT VISION',
+                style: TextStyle(color: Color(0xFF4EFE7B), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2.0),
+              ),
+            ),
+            const Positioned(
+              top: 55,
+              right: 18,
+              child: Row(
+                children: [
+                  Icon(Icons.battery_4_bar, color: Color(0xFF4EFE7B), size: 16),
+                  SizedBox(width: 4),
+                  Text(
+                    'IR-850nm ON',
+                    style: TextStyle(color: Color(0xFF4EFE7B), fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+            const Positioned(
+              bottom: 110,
+              left: 18,
+              child: Text(
+                'GAIN: +18dB • PHOSPHOR P-43',
+                style: TextStyle(color: Color(0xFF4EFE7B), fontSize: 9, letterSpacing: 1.0),
+              ),
+            ),
+          ],
+        );
+
+      case ActiveFilterType.thermal:
+        // Bottom-Right: FLIR Ironbow Thermal False-Color & Holy Glow + Temperature Scale Bar
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            const Positioned(
+              top: 55,
+              left: 18,
+              child: Text(
+                'THERMAL & HOLY GLOW',
+                style: TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5),
+              ),
+            ),
+            const Positioned(
+              top: 55,
+              right: 18,
+              child: Text(
+                'MAX 38.2°C • MIN 18.0°C',
+                style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            ),
+            // Center Reticle with Temperature
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.amberAccent, width: 1.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.add, color: Colors.amberAccent, size: 16),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    color: Colors.black87,
+                    child: const Text(
+                      '36.6°C',
+                      style: TextStyle(color: Colors.amberAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Vertical FLIR Ironbow Temperature Scale Legend Bar on the right
+            Positioned(
+              right: 12,
+              top: 100,
+              bottom: 140,
+              child: Column(
+                children: [
+                  const Text('38°C', style: TextStyle(color: Colors.white, fontSize: 8)),
+                  const SizedBox(height: 2),
+                  Expanded(
+                    child: Container(
+                      width: 12,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.white30, width: 0.8),
+                        gradient: const LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.white,
+                            Colors.yellow,
+                            Colors.orange,
+                            Colors.red,
+                            Colors.purple,
+                            Color(0xFF0A0033),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text('18°C', style: TextStyle(color: Colors.lightBlueAccent, fontSize: 8)),
+                ],
+              ),
+            ),
+          ],
+        );
+    }
+  }
+}
+
+/// Simulated Viewfinder for emulator / devices without camera permissions
+class SimulatedViewfinder extends StatelessWidget {
+  const SimulatedViewfinder({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF0C130F),
+      child: CustomPaint(
+        painter: SimulatedViewfinderPainter(),
+      ),
     );
   }
 }
 
-/// Fallback painter that renders an authentic radar crosshair and grid when camera hardware is unavailable
 class SimulatedViewfinderPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -443,4 +805,3 @@ class SimulatedViewfinderPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

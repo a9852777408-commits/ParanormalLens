@@ -63,18 +63,23 @@ jobs:
         continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.1
-          name: "PL v1.0.1 (Stable APK)"
+          tag_name: v1.0.2
+          name: "PL v1.0.2 (All Unlocked + 4 Horror Filters + Audio + Bestiary)"
           body: |
-            ### 👻 PL v1.0.1 - Stable Build
-            - **Fixed Startup Crash**: Fixed Android package namespace mismatch with MainActivity.
-            - **Renamed to PL**: App and output APK file named `PL.apk`.
-            - **Hardware & Emulator Support**: Added simulated viewfinder fallback when camera is unavailable.
-            - **Lightweight APK**: Removed unneeded native Google Play Services binaries, reducing download size.
+            ### 👻 PL v1.0.2 - Full Features Unlocked Test Build
+            - **4 Reference Horror Filters**:
+              1. Normal Mode (1080p, moody lighting, framing corners, dark vignette)
+              2. Low-Res VHS (360p vintage, REC blinking red dot, NOV 13 timestamp, SP, tracking lines)
+              3. Night Vision (PVS-14 green phosphor, circular goggle aperture vignette, green grain, battery OSD)
+              4. Thermal & Holy Glow (FLIR Ironbow false-color matrix, temperature gradient legend, crosshair with °C)
+            - **Real Audio Engine**: Looping ambient horror drone, reactive Geiger clicks, Holy church bells on banish, ghost EVP whispers.
+            - **Full Bestiary**: All 8 paranormal entities unlocked with lore, danger ratings, and audio playback.
+            - **All Features Unlocked**: Unrestricted access for testing.
+            - **Zero-Overflow UI**: Perfectly responsive top and bottom bars without layout glitches.
             
             **Direct Download:**
-            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.1/PL.apk)
-            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.1/PL-release.apk)
+            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.2/PL.apk)
+            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.2/PL-release.apk)
           files: |
             build/dist/PL.apk
             build/dist/PL-debug.apk

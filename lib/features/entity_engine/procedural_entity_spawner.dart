@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:sensors_plus/sensors_plus.dart';
-import '../../core/models/regional_profile.dart';
-import '../../core/services/geo_adaptation_service.dart';
 
 class ProceduralEntityInstance {
   final double seed;

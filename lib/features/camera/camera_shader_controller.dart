@@ -4,7 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../entity_engine/procedural_entity_spawner.dart';
 
-enum ActiveFilterType { nightVision, thermal, evpStatic, normal }
+enum ActiveFilterType { normal, vhs, nightVision, thermal }
 
 /// Coordinates live device camera hardware with Flutter Impeller GLSL shaders
 class CameraShaderController extends ChangeNotifier {
@@ -16,18 +16,66 @@ class CameraShaderController extends ChangeNotifier {
   List<CameraDescription> _availableCameras = [];
   int _selectedCameraIndex = 0;
   bool _isInitialized = false;
+  bool _isTorchOn = false;
 
   ActiveFilterType _activeFilter = ActiveFilterType.nightVision;
   ActiveFilterType get activeFilter => _activeFilter;
   CameraController? get controller => _cameraController;
   bool get isInitialized => _isInitialized;
+  bool get isTorchOn => _isTorchOn;
   bool get isFrontCamera => _availableCameras.isNotEmpty &&
       _availableCameras[_selectedCameraIndex].lensDirection == CameraLensDirection.front;
+
+  // GPU Color Matrices matching the 4 quadrants of horror_camera_filters_1791799886078.jpg:
+  // 1. Normal Mode: Clean 1080p neutral grading
+  static const List<double> matrixNormal = [
+    1.0, 0.0, 0.0, 0.0, 0.0,
+    0.0, 1.0, 0.0, 0.0, 0.0,
+    0.0, 0.0, 1.0, 0.0, 0.0,
+    0.0, 0.0, 0.0, 1.0, 0.0,
+  ];
+
+  // 2. Low-Res VHS Mode: 360p vintage analog tape color shift
+  static const List<double> matrixVhs = [
+    0.88, 0.12, 0.08, 0.0, 10.0,
+    0.08, 0.85, 0.12, 0.0, 12.0,
+    0.10, 0.12, 0.78, 0.0,  8.0,
+    0.0,  0.0,  0.0,  1.0,  0.0,
+  ];
+
+  // 3. Night Vision: Intense military PVS-14 green phosphor luminance
+  static const List<double> matrixNightVision = [
+    0.05, 0.12, 0.03, 0.0, -10.0,
+    0.45, 1.35, 0.25, 0.0,  18.0,
+    0.08, 0.18, 0.06, 0.0,  -8.0,
+    0.0,  0.0,  0.0,  1.0,   0.0,
+  ];
+
+  // 4. Thermal & Holy Glow: FLIR Ironbow false-color (cold=deep indigo/purple, hot=fire orange/yellow/white)
+  static const List<double> matrixThermal = [
+    2.1,  0.8, -0.3, 0.0, -25.0,
+    0.2,  1.3, -0.9, 0.0, -65.0,
+   -1.4, -1.4,  1.3, 0.0, 175.0,
+    0.0,  0.0,  0.0,  1.0,   0.0,
+  ];
+
+  List<double> get activeColorMatrix {
+    switch (_activeFilter) {
+      case ActiveFilterType.normal:
+        return matrixNormal;
+      case ActiveFilterType.vhs:
+        return matrixVhs;
+      case ActiveFilterType.nightVision:
+        return matrixNightVision;
+      case ActiveFilterType.thermal:
+        return matrixThermal;
+    }
+  }
 
   // Loaded Shader Programs
   ui.FragmentShader? _nightVisionShader;
   ui.FragmentShader? _thermalShader;
-  ui.FragmentShader? _evpStaticShader;
+  ui.FragmentShader? _vhsShader;
   ui.FragmentShader? _proceduralShadowShader;
 
   Future<void> initialize() async {
@@ -75,8 +123,8 @@ class CameraShaderController extends ChangeNotifier {
       final thermalProgram = await ui.FragmentProgram.fromAsset('shaders/thermal_palette.frag');
       _thermalShader = thermalProgram.fragmentShader();
 
-      final evpProgram = await ui.FragmentProgram.fromAsset('shaders/crt_scanline_noise.frag');
-      _evpStaticShader = evpProgram.fragmentShader();
+      final vhsProgram = await ui.FragmentProgram.fromAsset('shaders/crt_scanline_noise.frag');
+      _vhsShader = vhsProgram.fragmentShader();
 
       final shadowProgram = await ui.FragmentProgram.fromAsset('shaders/procedural_shadow.frag');
       _proceduralShadowShader = shadowProgram.fragmentShader();
@@ -96,6 +144,18 @@ class CameraShaderController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Toggles hardware torch / flashlight
+  Future<void> toggleTorch() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+    try {
+      _isTorchOn = !_isTorchOn;
+      await _cameraController!.setFlashMode(_isTorchOn ? FlashMode.torch : FlashMode.off);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[Camera] Torch toggle error: $e');
+    }
+  }
+
   void setFilter(ActiveFilterType filter) {
     _activeFilter = filter;
     notifyListeners();
@@ -107,8 +167,8 @@ class CameraShaderController extends ChangeNotifier {
         return _nightVisionShader;
       case ActiveFilterType.thermal:
         return _thermalShader;
-      case ActiveFilterType.evpStatic:
-        return _evpStaticShader;
+      case ActiveFilterType.vhs:
+        return _vhsShader;
       case ActiveFilterType.normal:
         return null;
     }
@@ -139,7 +199,7 @@ class ShaderPostProcessingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 1. Draw Camera Post-Processing Shader (Night Vision, Thermal, EVP)
+    // 1. Draw Camera Post-Processing Shader (Night Vision, Thermal, VHS)
     if (shader != null) {
       shader!.setFloat(0, size.width);
       shader!.setFloat(1, size.height);
