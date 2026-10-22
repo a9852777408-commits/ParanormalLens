@@ -4,6 +4,7 @@ import android.content.res.AssetFileDescriptor
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.SoundPool
+import io.flutter.FlutterInjector
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -64,8 +65,7 @@ class MainActivity : FlutterActivity() {
 
     private fun loadSound(name: String) {
         try {
-            val flutterKey = flutterEngine?.dartExecutor?.getAssetFilePathByName("assets/audio/$name.wav")
-                ?: "flutter_assets/assets/audio/$name.wav"
+            val flutterKey = FlutterInjector.instance().flutterLoader().getLookupKeyForAsset("assets/audio/$name.wav")
             val afd: AssetFileDescriptor = assets.openFd(flutterKey)
             val soundId = soundPool?.load(afd, 1) ?: 0
             if (soundId > 0) {
@@ -88,8 +88,7 @@ class MainActivity : FlutterActivity() {
         try {
             if (mediaPlayer == null) {
                 mediaPlayer = MediaPlayer()
-                val flutterKey = flutterEngine?.dartExecutor?.getAssetFilePathByName("assets/audio/ambient_drone.wav")
-                    ?: "flutter_assets/assets/audio/ambient_drone.wav"
+                val flutterKey = FlutterInjector.instance().flutterLoader().getLookupKeyForAsset("assets/audio/ambient_drone.wav")
                 val afd = assets.openFd(flutterKey)
                 mediaPlayer?.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
                 mediaPlayer?.isLooping = true
