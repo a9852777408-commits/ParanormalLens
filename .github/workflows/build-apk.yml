@@ -63,23 +63,20 @@ jobs:
         continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.2
-          name: "PL v1.0.2 (All Unlocked + 4 Horror Filters + Audio + Bestiary)"
+          tag_name: v1.0.3
+          name: "PL v1.0.3 - AR Gyro Spatial Anchoring, Sacred Exorcism Ritual, Haunt Drone & 3s Bestiary Scan"
           body: |
-            ### 👻 PL v1.0.2 - Full Features Unlocked Test Build
-            - **4 Reference Horror Filters**:
-              1. Normal Mode (1080p, moody lighting, framing corners, dark vignette)
-              2. Low-Res VHS (360p vintage, REC blinking red dot, NOV 13 timestamp, SP, tracking lines)
-              3. Night Vision (PVS-14 green phosphor, circular goggle aperture vignette, green grain, battery OSD)
-              4. Thermal & Holy Glow (FLIR Ironbow false-color matrix, temperature gradient legend, crosshair with °C)
-            - **Real Audio Engine**: Looping ambient horror drone, reactive Geiger clicks, Holy church bells on banish, ghost EVP whispers.
-            - **Full Bestiary**: All 8 paranormal entities unlocked with lore, danger ratings, and audio playback.
-            - **All Features Unlocked**: Unrestricted access for testing.
-            - **Zero-Overflow UI**: Perfectly responsive top and bottom bars without layout glitches.
+            ### 👻 PL v1.0.3 - AR Gyro Spatial Anchoring & Sacred Exorcism Update
+            - **Spatial AR Gyroscope Anchoring**: Phantoms and entities now remain locked in 3D world space. Turning the phone shifts the phantom out of view and turning back brings it back into frame.
+            - **Authentic Sacred Exorcism Ritual**: Tapping "Освятить" triggers a radiant Orthodox Cross (☦), divine rays, burning halo, and Old Church Slavonic exorcist prayer chants («ДА ВОСКРЕСНЕТЪ БОГЪ...», «СВЯТЫЙ БОЖЕ...»), church bell chimes, and holy ember disintegration.
+            - **New Phantom Archetype (Haunt Drone)**: "Темный Летун из темноты" (Archetype 6.0) glides out of pitch darkness with glowing yellow/white demonic eyes, wide outstretched wings, and approach depth scaling.
+            - **3-Second Lock-on Bestiary Scanner**: Aiming the crosshair at a ghost for 3 continuous seconds initiates AR circular progress scanning and unlocks/researches the entity in the Bestiary with a discovery chime.
+            - **Thermal Dynamic Temperature & Anomaly Field Warning**: Replaced static 36.6°C with dynamic sensor readings; detects ghosts with an icy drop (-2.8°C), rapid Geiger clicks, and `⚠️ [АНОМАЛЬНОЕ ПОЛЕ ОБНАРУЖЕНО!]`.
+            - **Filter Button Sync & HUD Positioning**: Fixed bottom bar active tab highlighting in VHS/Thermal modes and shifted HUD overlays away from action buttons (zero-overlap).
             
             **Direct Download:**
-            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.2/PL.apk)
-            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.2/PL-release.apk)
+            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.3/PL.apk)
+            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.3/PL-release.apk)
           files: |
             build/dist/PL.apk
             build/dist/PL-debug.apk
