@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 /// Master audio controller for ParanormalLens / PL:
-/// Connects to native Android SoundPool and MediaPlayer for zero-latency horror sounds
+/// Connects to native Android SoundPool, MediaPlayer and Microphone Speech/Prayer Recognizer
 class AudioService {
   static final AudioService _instance = AudioService._internal();
   factory AudioService() => _instance;
@@ -14,11 +14,36 @@ class AudioService {
   Timer? _geigerLoopTimer;
   double _currentEmfIntensity = 0.0;
   bool _isMuted = false;
+  bool _isListeningPrayer = false;
 
   bool get isMuted => _isMuted;
+  bool get isListeningPrayer => _isListeningPrayer;
+
+  // Callbacks for prayer voice detection
+  Function(String phrase, String source)? onPrayerDetected;
+  Function(double energy)? onVoiceEnergy;
 
   void initialize() {
+    _channel.setMethodCallHandler(_handleNativeCall);
     playAmbientDrone();
+    startPrayerListening();
+  }
+
+  Future<dynamic> _handleNativeCall(MethodCall call) async {
+    switch (call.method) {
+      case 'onPrayerRecognized':
+        final phrase = call.arguments['phrase']?.toString() ?? '«СВЯЩЕННАЯ МОЛИТВА»';
+        final source = call.arguments['source']?.toString() ?? 'speech';
+        debugPrint('[Audio] Sacred prayer heard by mic: $phrase (source: $source)');
+        onPrayerDetected?.call(phrase, source);
+        break;
+      case 'onVoiceEnergy':
+        final energy = (call.arguments['energy'] as num?)?.toDouble() ?? 0.0;
+        onVoiceEnergy?.call(energy);
+        break;
+      default:
+        break;
+    }
   }
 
   void toggleMute() {
@@ -54,6 +79,28 @@ class AudioService {
       await _channel.invokeMethod('playSfx', {'name': name});
     } catch (e) {
       debugPrint('[Audio] Error playing SFX $name: $e');
+    }
+  }
+
+  /// Starts listening for sacred prayers through the microphone
+  Future<void> startPrayerListening() async {
+    try {
+      _isListeningPrayer = true;
+      await _channel.invokeMethod('startPrayerListening');
+      debugPrint('[Audio] Microphone sacred prayer listener active.');
+    } catch (e) {
+      debugPrint('[Audio] Error starting prayer listening: $e');
+    }
+  }
+
+  /// Stops listening for sacred prayers
+  Future<void> stopPrayerListening() async {
+    try {
+      _isListeningPrayer = false;
+      await _channel.invokeMethod('stopPrayerListening');
+      debugPrint('[Audio] Microphone sacred prayer listener stopped.');
+    } catch (e) {
+      debugPrint('[Audio] Error stopping prayer listening: $e');
     }
   }
 
@@ -96,5 +143,6 @@ class AudioService {
   void stop() {
     _geigerLoopTimer?.cancel();
     stopAmbient();
+    stopPrayerListening();
   }
 }

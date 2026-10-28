@@ -63,20 +63,24 @@ jobs:
         continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.3
-          name: "PL v1.0.3 - AR Gyro Spatial Anchoring, Sacred Exorcism Ritual, Haunt Drone & 3s Bestiary Scan"
+          tag_name: v1.0.4
+          name: "PL v1.0.4 - Natural Exorcism: Mic Prayer Recognition & Cross Radiant Godrays"
           body: |
-            ### 👻 PL v1.0.3 - AR Gyro Spatial Anchoring & Sacred Exorcism Update
-            - **Spatial AR Gyroscope Anchoring**: Phantoms and entities now remain locked in 3D world space. Turning the phone shifts the phantom out of view and turning back brings it back into frame.
-            - **Authentic Sacred Exorcism Ritual**: Tapping "Освятить" triggers a radiant Orthodox Cross (☦), divine rays, burning halo, and Old Church Slavonic exorcist prayer chants («ДА ВОСКРЕСНЕТЪ БОГЪ...», «СВЯТЫЙ БОЖЕ...»), church bell chimes, and holy ember disintegration.
-            - **New Phantom Archetype (Haunt Drone)**: "Темный Летун из темноты" (Archetype 6.0) glides out of pitch darkness with glowing yellow/white demonic eyes, wide outstretched wings, and approach depth scaling.
-            - **3-Second Lock-on Bestiary Scanner**: Aiming the crosshair at a ghost for 3 continuous seconds initiates AR circular progress scanning and unlocks/researches the entity in the Bestiary with a discovery chime.
-            - **Thermal Dynamic Temperature & Anomaly Field Warning**: Replaced static 36.6°C with dynamic sensor readings; detects ghosts with an icy drop (-2.8°C), rapid Geiger clicks, and `⚠️ [АНОМАЛЬНОЕ ПОЛЕ ОБНАРУЖЕНО!]`.
-            - **Filter Button Sync & HUD Positioning**: Fixed bottom bar active tab highlighting in VHS/Thermal modes and shifted HUD overlays away from action buttons (zero-overlap).
+            ### 👻 PL v1.0.4 - Natural Exorcism Update (Voice Prayer & Sacred Cross)
+            - **No More Screen Buttons for Exorcism**: The manual "Освятить" button has been completely removed. Ghosts no longer vanish from tapping the screen.
+            - **Microphone Sacred Prayer Detection**:
+              - Continuously listens for spoken prayers via speech recognition and acoustic vocal chanting detection.
+              - Recognizes sacred prayers: "Отче наш", "Господи помилуй", "Изыди", "Да воскреснет Бог", "Святый Боже", "Аминь", "Христос", etc.
+              - Holy bells sound and active phantoms shriek and evaporate into divine embers.
+            - **Cross in Frame Recognition & Divine Radiance**:
+              - Detects crucifixes, crosses, or holy symbols in the camera viewfinder.
+              - **Volumetric golden godrays and glowing halation rings actively radiate directly from the cross in frame**.
+              - Concentrated beams of holy light strike from the cross into the phantom, incinerating it.
+            - **Streamlined Bottom Bar**: Two equal 50% buttons [Радар аномалий | Бестиарий] without clutter.
             
             **Direct Download:**
-            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.3/PL.apk)
-            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.3/PL-release.apk)
+            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.4/PL.apk)
+            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.4/PL-release.apk)
           files: |
             build/dist/PL.apk
             build/dist/PL-debug.apk

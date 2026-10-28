@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +11,7 @@ import 'features/entity_engine/procedural_entity_spawner.dart';
 import 'features/entity_engine/suspense_engine.dart';
 import 'features/prank/prank_engine.dart';
 import 'features/vision/sacred_relic_detector.dart';
+import 'features/vision/cross_radiance_overlay.dart';
 import 'core/services/audio_service.dart';
 
 void main() {
@@ -59,11 +61,23 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
   double _scanProgress = 0.0; // 0.0 to 1.0 (3 seconds = 1.0)
   bool _isLockingOn = false;
 
-  // Sacred Exorcism Ritual State
+  // Microphone Voice & Prayer Detection State
+  bool _isPrayerActive = false;
+  double _voiceEnergy = 0.0;
+  String _detectedPrayerPhrase = '';
+  Timer? _prayerDisplayTimer;
+
+  // Cross in Frame Detection & Golden Radiance State
+  bool _isCrossInFrame = false;
+  Offset _crossCenter = const Offset(0.5, 0.42);
+  Timer? _crossBanishTimer;
+
+  // Sacred Exorcism Visual Effect State
   bool _isExorcismActive = false;
   double _exorcismAnimProgress = 0.0;
   Timer? _exorcismTimer;
   String _currentPrayerText = '«ДА ВОСКРЕСНЕТЪ БОГЪ, И РАЗТОЧАТСЯ ВРАЗИ ЕГО...»';
+  String _exorcismSource = 'voice'; // 'voice' or 'cross'
 
   @override
   void initState() {
@@ -88,21 +102,54 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     } catch (e) {
       debugPrint('[Init] Camera error: $e');
     }
+
+    // Initialize Cross & Sacred Relics Vision Detector
     try {
-      SacredRelicDetector().startInferenceLoop();
+      final relicDetector = SacredRelicDetector();
+      relicDetector.startInferenceLoop();
+      relicDetector.onCrossDetected = (center, box) {
+        if (!_isCrossInFrame || (_crossCenter - center).distance > 0.04) {
+          _isCrossInFrame = true;
+          _crossCenter = center;
+          _onCrossDetectedInFrame(center);
+          if (mounted) setState(() {});
+        }
+      };
+      relicDetector.onCrossLost = () {
+        if (_isCrossInFrame) {
+          _isCrossInFrame = false;
+          _crossBanishTimer?.cancel();
+          if (mounted) setState(() {});
+        }
+      };
     } catch (e) {
       debugPrint('[Init] Relic detector error: $e');
     }
+
     try {
       ProceduralEntitySpawner().startCameraMotionMonitoring();
     } catch (e) {
       debugPrint('[Init] Spawner error: $e');
     }
+
+    // Initialize Native Audio Service and Microphone Prayer Listener
     try {
-      AudioService().initialize();
+      final audio = AudioService();
+      audio.initialize();
+      audio.onPrayerDetected = (phrase, source) {
+        _onPrayerHeardFromMicrophone(phrase, source);
+      };
+      audio.onVoiceEnergy = (energy) {
+        if (mounted) {
+          setState(() {
+            _voiceEnergy = energy;
+          });
+        }
+      };
     } catch (e) {
       debugPrint('[Init] Audio error: $e');
     }
+
     try {
       SuspenseEngine().startPacingSession();
     } catch (e) {
@@ -149,28 +196,28 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     });
   }
 
+  /// Called when crosshair was locked on ghost for 3 continuous seconds
   void _onGhostScannedSuccessfully(ProceduralEntityInstance entity) {
-    _scanProgress = 0.0;
     _isLockingOn = false;
+    _scanProgress = 0.0;
 
-    // Map archetype to Bestiary ID
-    String bestiaryId = 'haunt_drone';
-    if (entity.archetype == 0.0) bestiaryId = 'paul_first';
-    if (entity.archetype == 1.0) bestiaryId = 'domestic_poltergeist';
-    if (entity.archetype == 3.0) bestiaryId = 'flying_head_phantom';
-    if (entity.archetype == 4.0) bestiaryId = 'white_cemetery_watcher';
-    if (entity.archetype == 5.0) bestiaryId = 'inverted_raven';
-    if (entity.archetype == 6.0) bestiaryId = 'haunt_drone';
+    AudioService().playHolyDawnBell();
+    HapticFeedback.heavyImpact();
+
+    final bestiaryId = entity.archetype == 6.0
+        ? 'haunt_drone'
+        : entity.archetype == 5.0
+            ? 'inverted_raven'
+            : entity.archetype == 4.0
+                ? 'white_cemetery_watcher'
+                : 'shadow_stalker';
 
     final isNew = BestiaryService().captureEntity(bestiaryId);
-
-    HapticFeedback.heavyImpact();
-    AudioService().playSfx('holy_dawn_bell');
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          backgroundColor: const Color(0xFF1B2E24),
+          backgroundColor: const Color(0xFF1B2E1B),
           duration: const Duration(seconds: 3),
           content: Row(
             children: [
@@ -191,30 +238,67 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     }
   }
 
-  /// Sacred Exorcism Ritual with Orthodox Cross & Church Slavonic Prayers
-  void _triggerSacredExorcismRitual() {
+  /// 1. Microphone Prayer Detection Handler
+  void _onPrayerHeardFromMicrophone(String phrase, String source) {
     final spawner = ProceduralEntitySpawner();
-    if (!spawner.hasActiveEntity) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('⚠️ Нет активных аномалий для освящения в поле зрения.'),
-          duration: Duration(seconds: 1),
-        ),
-      );
-      return;
+    final hasGhost = spawner.hasActiveEntity;
+
+    setState(() {
+      _isPrayerActive = true;
+      _detectedPrayerPhrase = phrase;
+      _currentPrayerText = phrase.contains('«') ? phrase : '«$phrase»';
+      _exorcismSource = 'voice';
+    });
+
+    _prayerDisplayTimer?.cancel();
+    _prayerDisplayTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) {
+        setState(() {
+          _isPrayerActive = false;
+        });
+      }
+    });
+
+    AudioService().playHolyDawnBell();
+    HapticFeedback.heavyImpact();
+
+    if (hasGhost) {
+      _triggerSacredVoiceExorcism(phrase);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF1A261A),
+            duration: const Duration(seconds: 2),
+            content: Row(
+              children: [
+                const Icon(Icons.mic, color: Colors.amberAccent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('🎙️ [МОЛИТВА УСЛЫШАНА МИКРОФОНОМ: $phrase]'),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
     }
+  }
+
+  /// Sacred voice-driven exorcism (dissolves ghost when user speaks prayer)
+  void _triggerSacredVoiceExorcism(String phrase) {
+    final spawner = ProceduralEntitySpawner();
+    if (!spawner.hasActiveEntity) return;
 
     setState(() {
       _isExorcismActive = true;
       _exorcismAnimProgress = 0.0;
-      _currentPrayerText = '«ДА ВОСКРЕСНЕТЪ БОГЪ, И РАЗТОЧАТСЯ ВРАЗИ ЕГО...»';
+      _exorcismSource = 'voice';
+      _currentPrayerText = phrase.isNotEmpty
+          ? (phrase.contains('«') ? phrase : '«$phrase»')
+          : '«ДА ВОСКРЕСНЕТЪ БОГЪ, И РАЗТОЧАТСЯ ВРАЗИ ЕГО...»';
     });
 
-    // Sound: resounding dawn cathedral bells
-    AudioService().playHolyDawnBell();
-    HapticFeedback.heavyImpact();
-
-    // Strobe camera torch if available
     final camera = CameraShaderController();
     camera.toggleTorch();
 
@@ -222,15 +306,15 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     const totalDurationMs = 2400;
     const intervalMs = 40;
     int ticks = 0;
-    final totalTicks = totalDurationMs ~/ intervalMs;
+    const totalTicks = totalDurationMs ~/ intervalMs;
 
     _exorcismTimer = Timer.periodic(const Duration(milliseconds: intervalMs), (timer) {
       ticks++;
       _exorcismAnimProgress = (ticks / totalTicks).clamp(0.0, 1.0);
 
-      if (_exorcismAnimProgress > 0.35 && _exorcismAnimProgress < 0.70) {
+      if (_exorcismAnimProgress > 0.40 && _exorcismAnimProgress < 0.75) {
         _currentPrayerText = '«ЯКО ТАЕТЪ ВОСКЪ ОТЪ ЛИЦА ОГНЯ, ТАКО ДА ПОГИБНУТЪ БѢСИ...»';
-      } else if (_exorcismAnimProgress >= 0.70) {
+      } else if (_exorcismAnimProgress >= 0.75) {
         _currentPrayerText = '«СВЯТЫЙ БОЖЕ, СВЯТЫЙ КРѢПКIЙ, СВЯТЫЙ БЕЗСМЕРТНЫЙ, ПОМИЛУЙ НАСЪ!»';
       }
 
@@ -247,7 +331,82 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
       }
     });
 
-    // Banish entity with golden embers
+    spawner.banishActiveEntity(onComplete: () {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Color(0xFF2E2414),
+            content: Row(
+              children: [
+                Icon(Icons.mic, color: Colors.amber),
+                SizedBox(width: 8),
+                Text('✨ Сущность изгнана вашей живой молитвой в микрофон!'),
+              ],
+            ),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    });
+  }
+
+  /// 2. Cross Detected in Frame Handler
+  void _onCrossDetectedInFrame(Offset center) {
+    final spawner = ProceduralEntitySpawner();
+    final entity = spawner.currentEntity;
+
+    if (entity != null && entity.banishProgress <= 0.0) {
+      // Golden radiance strikes phantom after 0.5s of focused cross illumination
+      _crossBanishTimer?.cancel();
+      _crossBanishTimer = Timer(const Duration(milliseconds: 550), () {
+        if (_isCrossInFrame && spawner.hasActiveEntity) {
+          _triggerCrossRadianceExorcism();
+        }
+      });
+    }
+  }
+
+  /// Sacred cross radiance exorcism (banishes ghost when illuminated by cross godrays)
+  void _triggerCrossRadianceExorcism() {
+    final spawner = ProceduralEntitySpawner();
+    if (!spawner.hasActiveEntity) return;
+
+    AudioService().playHolyDawnBell();
+    HapticFeedback.heavyImpact();
+
+    setState(() {
+      _isExorcismActive = true;
+      _exorcismAnimProgress = 0.0;
+      _exorcismSource = 'cross';
+      _currentPrayerText = '«СВЯТЫЙ КРЕСТЪ ГОСПОДЕНЬ — СИЯНИЕМЪ ТВОИМЪ ИЗГОНИ БѢСА!»';
+    });
+
+    final camera = CameraShaderController();
+    camera.toggleTorch();
+
+    _exorcismTimer?.cancel();
+    const totalDurationMs = 2400;
+    const intervalMs = 40;
+    int ticks = 0;
+    const totalTicks = totalDurationMs ~/ intervalMs;
+
+    _exorcismTimer = Timer.periodic(const Duration(milliseconds: intervalMs), (timer) {
+      ticks++;
+      _exorcismAnimProgress = (ticks / totalTicks).clamp(0.0, 1.0);
+
+      if (ticks >= totalTicks) {
+        timer.cancel();
+        setState(() {
+          _isExorcismActive = false;
+        });
+        if (camera.isTorchOn) {
+          camera.toggleTorch();
+        }
+      } else {
+        if (mounted) setState(() {});
+      }
+    });
+
     spawner.banishActiveEntity(onComplete: () {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -257,14 +416,43 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
               children: [
                 Icon(Icons.flare, color: Colors.amber),
                 SizedBox(width: 8),
-                Text('✨ Сущность изгнана Животворящим Крестом и молитвой!'),
+                Text('☦ ✨ Сияние Святого Креста в кадре испепелило призрака!'),
               ],
             ),
-            duration: Duration(seconds: 2),
+            duration: Duration(seconds: 3),
           ),
         );
       }
     });
+  }
+
+  /// Helper to toggle simulated/physical cross for instant testing
+  void _toggleCrossTest() {
+    final relic = SacredRelicDetector();
+    if (_isCrossInFrame) {
+      relic.clearCrossDetection();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('☦ Крест убран из поля зрения'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    } else {
+      relic.feedCrossDetection(const Offset(0.5, 0.40));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xFF2E2414),
+          content: Row(
+            children: [
+              Icon(Icons.flare, color: Colors.amber),
+              SizedBox(width: 8),
+              Text('☦ Святой Крест в кадре: Божественное сияние активно!'),
+            ],
+          ),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   @override
@@ -272,6 +460,8 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     _tickerController.dispose();
     _scanTimer?.cancel();
     _exorcismTimer?.cancel();
+    _prayerDisplayTimer?.cancel();
+    _crossBanishTimer?.cancel();
     super.dispose();
   }
 
@@ -338,6 +528,14 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                   if (_isLockingOn && spawner.currentEntity != null)
                     _buildTargetLockRing(spawner.currentEntity!),
 
+                  // 2. Divine Golden Radiance Overlay emanating from Cross in Frame
+                  if (_isCrossInFrame)
+                    CrossRadianceOverlay(
+                      crossCenter: _crossCenter,
+                      animationValue: _tickerController.value * 10.0,
+                      targetEntity: spawner.currentEntity,
+                    ),
+
                   // Offline / Missing camera banner
                   if (!isCameraReady)
                     Positioned(
@@ -349,7 +547,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                         decoration: BoxDecoration(
                           color: Colors.black87,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: profile.aesthetic.accent.withOpacity(0.5)),
+                          border: Border.all(color: profile.aesthetic.accent.withValues(alpha: 0.5)),
                         ),
                         child: Row(
                           children: [
@@ -374,11 +572,14 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
             },
           ),
 
-          // 2. Sacred Exorcism Overlay (Golden Orthodox Cross & Prayer Chants)
+          // 3. Sacred Exorcism / Prayer Overlay (Golden Orthodox Cross & Prayer Chants)
           if (_isExorcismActive)
             _buildSacredExorcismRitualOverlay(),
 
-          // 3. Top HUD Bar (Positioned strictly at top under SafeArea)
+          // 4. Live Microphone Prayer Voice Ripple Indicator (under top bar)
+          _buildMicPrayerIndicator(),
+
+          // 5. Top HUD Bar (Positioned strictly at top under SafeArea)
           Positioned(
             top: 0,
             left: 0,
@@ -397,7 +598,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                         decoration: BoxDecoration(
                           color: Colors.black87,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: profile.aesthetic.accent.withOpacity(0.4)),
+                          border: Border.all(color: profile.aesthetic.accent.withValues(alpha: 0.4)),
                         ),
                         child: Row(
                           children: [
@@ -444,9 +645,23 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                       ),
                     ),
 
-                    // Hardware Quick Controls
+                    // Hardware Quick Controls + Cross / Mic Status
                     Row(
                       children: [
+                        // Cross Presence Toggle (Test / Status)
+                        IconButton(
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          padding: EdgeInsets.zero,
+                          tooltip: 'Показать/скрыть Крест',
+                          icon: Icon(
+                            _isCrossInFrame ? Icons.flare : Icons.church,
+                            color: _isCrossInFrame ? Colors.amberAccent : Colors.white70,
+                            size: 21,
+                          ),
+                          onPressed: _toggleCrossTest,
+                        ),
+
+                        // Torch
                         IconButton(
                           constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                           padding: EdgeInsets.zero,
@@ -457,6 +672,8 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                           ),
                           onPressed: () => camera.toggleTorch(),
                         ),
+
+                        // Mute Audio
                         IconButton(
                           constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                           padding: EdgeInsets.zero,
@@ -467,6 +684,8 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                           ),
                           onPressed: () => setState(() => AudioService().toggleMute()),
                         ),
+
+                        // Flip Camera
                         IconButton(
                           constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                           padding: EdgeInsets.zero,
@@ -481,7 +700,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
             ),
           ),
 
-          // 4. Bottom Controls (Zero-Overflow Responsive Layout with Sync Highlight!)
+          // 6. Bottom Controls: NO BUTTON DISAPPEARANCE - CLEAN TWO BUTTON LAYOUT!
           Positioned(
             bottom: 12,
             left: 10,
@@ -537,10 +756,10 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
 
                       const SizedBox(height: 8),
 
-                      // Row 2: Action Toolbar (Радар, Бестиарий, Освятить - 33% equal width each)
+                      // Row 2: Action Toolbar (Радар 50% & Бестиарий 50% - Screen Exorcism button removed!)
                       Row(
                         children: [
-                          // Radar Button
+                          // Radar Button (50%)
                           Expanded(
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
@@ -549,7 +768,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
-                                  side: BorderSide(color: profile.aesthetic.accent.withOpacity(0.5)),
+                                  side: BorderSide(color: profile.aesthetic.accent.withValues(alpha: 0.5)),
                                 ),
                               ),
                               onPressed: () async {
@@ -566,12 +785,12 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                                 );
                               },
                               icon: const Icon(Icons.radar, size: 16),
-                              label: const Text('Радар', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              label: const Text('Радар аномалий', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                             ),
                           ),
                           const SizedBox(width: 8),
 
-                          // Bestiary Button
+                          // Bestiary Button (50%)
                           Expanded(
                             child: ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
@@ -593,31 +812,31 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                               label: const Text('Бестиарий', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                             ),
                           ),
-                          const SizedBox(width: 8),
-
-                          // Sacred Exorcism Button (Now triggers Prayers + Orthodox Cross!)
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: profile.aesthetic.accent,
-                                foregroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              onPressed: _triggerSacredExorcismRitual,
-                              icon: const Icon(Icons.flare, size: 16),
-                              label: const Text('Освятить', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            ),
-                          ),
                         ],
                       ),
 
                       const SizedBox(height: 6),
-                      const Text(
-                        'ParanormalLens • Тестовый режим • Все сенсоры активны',
-                        style: TextStyle(color: Colors.white30, fontSize: 8),
+                      // Exorcism instruction pill (Replacing button with sacred mechanic guide)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.mic, color: _voiceEnergy > 0.15 ? Colors.greenAccent : Colors.amberAccent, size: 12),
+                            const SizedBox(width: 5),
+                            const Text(
+                              'Изгнание: скажите молитву в микрофон или покажите Крест',
+                              style: TextStyle(color: Colors.white70, fontSize: 9, letterSpacing: 0.3),
+                            ),
+                            const SizedBox(width: 5),
+                            const Icon(Icons.flare, color: Colors.amberAccent, size: 12),
+                          ],
+                        ),
                       ),
                     ],
                   );
@@ -626,30 +845,17 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
             ),
           ),
 
-          // 5. Jumpscare Screamer Overlay
+          // 7. Jumpscare Screamer Overlay
           AnimatedBuilder(
             animation: prank,
             builder: (context, child) {
               if (prank.state == PrankState.triggered) {
                 return Container(
                   color: Colors.red.shade900,
-                  child: const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.sentiment_very_dissatisfied, size: 140, color: Colors.white),
-                        SizedBox(height: 16),
-                        Text(
-                          'A A A H H H ! ! !',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 36,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2.0,
-                          ),
-                        ),
-                      ],
-                    ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    '⚠️ АНОМАЛИЯ ⚠️',
+                    style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
                   ),
                 );
               }
@@ -661,6 +867,82 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     );
   }
 
+  /// Live Microphone Prayer Voice Ripple Indicator
+  Widget _buildMicPrayerIndicator() {
+    if (_voiceEnergy <= 0.12 && !_isPrayerActive) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      top: 54,
+      left: 16,
+      right: 16,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(
+            color: _isPrayerActive ? const Color(0xFF2E2414) : Colors.black87,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: _isPrayerActive ? Colors.amberAccent : Colors.greenAccent,
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (_isPrayerActive ? Colors.amber : Colors.greenAccent).withValues(alpha: 0.3),
+                blurRadius: 12,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.mic,
+                color: _isPrayerActive ? Colors.amberAccent : Colors.greenAccent,
+                size: 16,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _isPrayerActive
+                    ? '🎙️ МОЛИТВА УСЛЫШАНА: ${_detectedPrayerPhrase.isNotEmpty ? _detectedPrayerPhrase : "«ОТЧЕ НАШ...»"}'
+                    : '🎙️ МИКРОФОН СЛУШАЕТ МОЛИТВУ...',
+                style: TextStyle(
+                  color: _isPrayerActive ? Colors.amberAccent : Colors.greenAccent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Animated Voice Meter Level
+              Container(
+                width: 24,
+                height: 8,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  color: Colors.white24,
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: _voiceEnergy.clamp(0.2, 1.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(4),
+                      color: _isPrayerActive ? Colors.amber : Colors.greenAccent,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Single filter button tab builder with synchronized highlight
   Widget _buildFilterTab({
     required String label,
     required IconData icon,
@@ -676,7 +958,6 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
           setState(() {
             camera.setFilter(filterType);
           });
-          AudioService().playSfx('geiger_tick');
         },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -687,12 +968,16 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 18, color: isSelected ? Colors.black : Colors.white70),
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? Colors.black : Colors.white60,
+              ),
               const SizedBox(height: 2),
               Text(
                 label,
                 style: TextStyle(
-                  color: isSelected ? Colors.black : Colors.white70,
+                  color: isSelected ? Colors.black : Colors.white60,
                   fontSize: 10,
                   fontWeight: isSelected ? FontWeight.w900 : FontWeight.normal,
                 ),
@@ -742,7 +1027,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
   /// Sacred Exorcism Ritual with Orthodox Cross & Church Slavonic Prayers
   Widget _buildSacredExorcismRitualOverlay() {
     return Container(
-      color: Colors.black.withOpacity(0.65),
+      color: Colors.black.withValues(alpha: 0.65),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -759,12 +1044,12 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.amber.withOpacity(0.55),
+                        color: Colors.amber.withValues(alpha: 0.55),
                         blurRadius: 40,
                         spreadRadius: 15,
                       ),
                       BoxShadow(
-                        color: Colors.orangeAccent.withOpacity(0.4),
+                        color: Colors.orangeAccent.withValues(alpha: 0.4),
                         blurRadius: 80,
                         spreadRadius: 25,
                       ),
@@ -808,9 +1093,11 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                 ),
                 child: Column(
                   children: [
-                    const Text(
-                      'МОЛИТВА ЖИВОТВОРЯЩЕМУ КРЕСТУ',
-                      style: TextStyle(
+                    Text(
+                      _exorcismSource == 'cross'
+                          ? 'СИЯНИЕ СВЯТОГО КРЕСТА'
+                          : 'СВЯЩЕННАЯ МОЛИТВА ИЗГНАНИЯ',
+                      style: const TextStyle(
                         color: Colors.amber,
                         fontSize: 10,
                         fontWeight: FontWeight.w900,
@@ -858,322 +1145,464 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
             ),
             const Positioned(
               top: 92, // Shifted down to prevent collision with top buttons!
-              left: 18,
+              left: 20,
               child: Text(
-                'NORMAL MODE • 1080p MOODY',
-                style: TextStyle(color: Colors.white70, fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.bold),
+                '1080p 60FPS • RAW SENSOR',
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                ),
               ),
             ),
-            Center(
-              child: Container(
-                width: 160,
-                height: 160,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.white24, width: 1.0),
-                ),
-                child: const Center(
-                  child: Icon(Icons.add, color: Colors.white38, size: 22),
-                ),
+            // Cinematic framing corners
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(painter: FramingCornersPainter(color: Colors.white30)),
               ),
             ),
           ],
         );
 
       case ActiveFilterType.vhs:
-        // Top-Right: Low-Res VHS (360p Vintage, REC red dot, timestamp, SP)
+        // VHS Vintage OSD: Blinking REC dot, NOV 13 1989 timestamp, SP, Play
         return Stack(
           fit: StackFit.expand,
           children: [
+            // Top-left: Blinking red REC dot and mode
             Positioned(
-              top: 92, // Shifted down cleanly below top buttons!
-              left: 18,
+              top: 92, // Shifted down!
+              left: 20,
               child: Row(
                 children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.redAccent),
+                  AnimatedBuilder(
+                    animation: _tickerController,
+                    builder: (context, child) {
+                      final isBlink = sin(_tickerController.value * 6.0) > 0.0;
+                      return Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: isBlink ? Colors.redAccent : Colors.red.shade900.withValues(alpha: 0.4),
+                          shape: BoxShape.circle,
+                        ),
+                      );
+                    },
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 8),
                   const Text(
                     'REC',
-                    style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                      letterSpacing: 2.0,
+                    ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   const Text(
-                    'NOV 13  12:44:31',
-                    style: TextStyle(color: Colors.white, fontFamily: 'monospace', fontSize: 12, letterSpacing: 1.0),
+                    'SP',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
             ),
+
+            // Top-right: PLAY indicator
             const Positioned(
               top: 92,
-              right: 18,
+              right: 20,
               child: Text(
-                'SP  -0:12:44',
-                style: TextStyle(color: Colors.white70, fontFamily: 'monospace', fontSize: 11),
+                'PLAY  ▶',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-            const Positioned(
-              bottom: 165, // Shifted up above bottom controls!
-              left: 18,
-              child: Text(
-                'TRACKING: AUTO\n360p VINTAGE',
-                style: TextStyle(color: Colors.white54, fontFamily: 'monospace', fontSize: 10),
+
+            // Bottom-left: Authentic Retro Date/Time timestamp (Shifted above bottom bar!)
+            Positioned(
+              bottom: 165,
+              left: 20,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'NOV. 13  1989',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontFamily: 'monospace',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      shadows: [Shadow(color: Colors.black, blurRadius: 4, offset: Offset(2, 2))],
+                    ),
+                  ),
+                  AnimatedBuilder(
+                    animation: _tickerController,
+                    builder: (context, _) {
+                      final now = DateTime.now();
+                      final timeStr =
+                          '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}:${(now.millisecond ~/ 100)}';
+                      return Text(
+                        'PM $timeStr',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'monospace',
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          shadows: [Shadow(color: Colors.black, blurRadius: 4, offset: Offset(2, 2))],
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           ],
         );
 
       case ActiveFilterType.nightVision:
-        // Bottom-Left: Military PVS-14 Monocular Circular Lens Aperture Vignette + Green Phosphor OSD
+        // PVS-14 Green Phosphor OSD: Circular goggle aperture vignette, IR-850nm, GAIN: +38dB
         return Stack(
           fit: StackFit.expand,
           children: [
-            // Circular Optical Aperture Goggle Mask
+            // Circular night vision binocular aperture mask
             Container(
               decoration: const BoxDecoration(
                 gradient: RadialGradient(
                   center: Alignment.center,
-                  radius: 0.72,
-                  colors: [Colors.transparent, Color(0x66000000), Color(0xF8000000)],
+                  radius: 0.88,
+                  colors: [Colors.transparent, Color(0xCC001A05), Colors.black],
                   stops: [0.65, 0.85, 1.0],
                 ),
               ),
             ),
-            const Positioned(
-              top: 92, // Shifted cleanly below top buttons!
-              left: 18,
-              child: Text(
-                'NIGHT VISION',
-                style: TextStyle(color: Color(0xFF4EFE7B), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2.0),
-              ),
-            ),
-            const Positioned(
+
+            // Top Status: IR-850nm ACTIVE, GAIN
+            Positioned(
               top: 92,
-              right: 18,
+              left: 20,
+              right: 20,
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.battery_4_bar, color: Color(0xFF4EFE7B), size: 16),
-                  SizedBox(width: 4),
-                  Text(
-                    'IR-850nm ON',
-                    style: TextStyle(color: Color(0xFF4EFE7B), fontSize: 10, fontWeight: FontWeight.bold),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF003311),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.6)),
+                    ),
+                    child: const Text(
+                      '⚡ IR-850nm ACTIVE',
+                      style: TextStyle(
+                        color: Colors.greenAccent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'GAIN: +38dB • AGC',
+                    style: TextStyle(
+                      color: Colors.greenAccent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'monospace',
+                    ),
                   ),
                 ],
               ),
             ),
+
+            // Bottom-left: Night Vision Battery Indicator
             const Positioned(
               bottom: 165,
-              left: 18,
-              child: Text(
-                'GAIN: +18dB • PHOSPHOR P-43',
-                style: TextStyle(color: Color(0xFF4EFE7B), fontSize: 9, letterSpacing: 1.0),
+              left: 20,
+              child: Row(
+                children: [
+                  Icon(Icons.battery_5_bar, color: Colors.greenAccent, size: 16),
+                  SizedBox(width: 4),
+                  Text(
+                    'NV-BAT: 84% [OK]',
+                    style: TextStyle(
+                      color: Colors.greenAccent,
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         );
 
       case ActiveFilterType.thermal:
-        // Bottom-Right: FLIR Ironbow Thermal False-Color & Dynamic Temperature / Anomalous Field Warning!
+        // Thermal FLIR Ironbow: Dynamic crosshair temperature, gradient legend, anomaly field warning
         final entity = spawner.currentEntity;
-        final hasGhostInCrosshair = entity != null &&
-            entity.banishProgress <= 0.0 &&
-            (entity.screenPosition - const Offset(0.5, 0.5)).distance < 0.24;
-
-        // Dynamic Temperature Calculation:
-        // If pointing at ghost -> anomalous cold drop to -2.8°C / +1.2°C!
-        // If pointing at normal surroundings -> 21.4°C ambient
-        final dynamicTemp = hasGhostInCrosshair
-            ? '-2.8°C'
-            : '${(21.4 + (_tickerController.value * 2.0)).toStringAsFixed(1)}°C';
+        final distToCenter = entity != null
+            ? (entity.screenPosition - const Offset(0.5, 0.5)).distance
+            : 1.0;
+        final isAimingAtEntity = distToCenter < 0.24;
 
         return Stack(
           fit: StackFit.expand,
           children: [
+            // Top: Thermal sensor model
             const Positioned(
               top: 92,
-              left: 18,
+              left: 20,
               child: Text(
-                'THERMAL & HOLY GLOW',
-                style: TextStyle(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5),
-              ),
-            ),
-            const Positioned(
-              top: 92,
-              right: 18,
-              child: Text(
-                'MAX 38.2°C • MIN 18.0°C',
-                style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                'FLIR IRONBOW MATRIX • 60Hz',
+                style: TextStyle(
+                  color: Colors.orangeAccent,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
 
-            // Center Dynamic Temperature Reticle
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: hasGhostInCrosshair ? Colors.redAccent : Colors.amberAccent,
-                        width: hasGhostInCrosshair ? 2.0 : 1.2,
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.add,
-                        color: hasGhostInCrosshair ? Colors.redAccent : Colors.amberAccent,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-
-                  // Dynamic temperature readout
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    color: Colors.black87,
-                    child: Text(
-                      dynamicTemp,
-                      style: TextStyle(
-                        color: hasGhostInCrosshair ? Colors.cyanAccent : Colors.amberAccent,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-
-                  // ANOMALOUS FIELD WARNING BADGE (when aimed at ghost!)
-                  if (hasGhostInCrosshair) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade900.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.amberAccent, width: 1.4),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.red, blurRadius: 10, spreadRadius: 1),
-                        ],
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.warning_amber_rounded, color: Colors.amberAccent, size: 14),
-                          SizedBox(width: 4),
-                          Text(
-                            '⚠️ АНОМАЛЬНОЕ ПОЛЕ ОБНАРУЖЕНО!',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-            // Vertical FLIR Ironbow Temperature Scale Legend Bar on the right
+            // Right: Temperature color gradient legend bar
             Positioned(
-              right: 12,
-              top: 120,
-              bottom: 165,
-              child: Column(
-                children: [
-                  const Text('38°C', style: TextStyle(color: Colors.white, fontSize: 8)),
-                  const SizedBox(height: 2),
-                  Expanded(
-                    child: Container(
-                      width: 12,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.white30, width: 0.8),
-                        gradient: const LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.white,
-                            Colors.yellow,
-                            Colors.orange,
-                            Colors.red,
-                            Colors.purple,
-                            Color(0xFF0A0033),
-                          ],
+              top: 130,
+              bottom: 200,
+              right: 16,
+              width: 18,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.white30),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white,
+                      Colors.yellow,
+                      Colors.orange,
+                      Colors.red,
+                      Colors.purple,
+                      Color(0xFF000033),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Temperature Legend scale labels
+            const Positioned(
+              top: 130,
+              right: 38,
+              child: Text(
+                '42°C',
+                style: TextStyle(color: Colors.white, fontSize: 9, fontFamily: 'monospace'),
+              ),
+            ),
+            const Positioned(
+              bottom: 200,
+              right: 38,
+              child: Text(
+                '-10°C',
+                style: TextStyle(color: Colors.white, fontSize: 9, fontFamily: 'monospace'),
+              ),
+            ),
+
+            // Center Dynamic Crosshair with real-time temperature
+            Center(
+              child: SizedBox(
+                width: 90,
+                height: 90,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    CustomPaint(
+                      size: const Size(90, 90),
+                      painter: CrosshairReticlePainter(
+                        color: isAimingAtEntity ? Colors.redAccent : Colors.orangeAccent,
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.black87,
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(
+                            color: isAimingAtEntity ? Colors.redAccent : Colors.orangeAccent,
+                          ),
+                        ),
+                        child: AnimatedBuilder(
+                          animation: _tickerController,
+                          builder: (context, _) {
+                            final dynamicTemp = isAimingAtEntity
+                                ? (-2.8 + 0.4 * sin(_tickerController.value * 12.0)).toStringAsFixed(1)
+                                : (21.4 + 1.2 * sin(_tickerController.value * 3.0)).toStringAsFixed(1);
+                            return Text(
+                              '$dynamicTemp°C',
+                              style: TextStyle(
+                                color: isAimingAtEntity ? Colors.cyanAccent : Colors.orangeAccent,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'monospace',
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  const Text('18°C', style: TextStyle(color: Colors.lightBlueAccent, fontSize: 8)),
-                ],
+                  ],
+                ),
               ),
             ),
+
+            // Prominent Anomalous Field Warning when crosshair is on ghost
+            if (isAimingAtEntity)
+              Positioned(
+                top: 120,
+                left: 20,
+                right: 20,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade900.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.yellowAccent, width: 1.5),
+                      boxShadow: const [
+                        BoxShadow(color: Colors.redAccent, blurRadius: 16),
+                      ],
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.warning, color: Colors.yellowAccent, size: 18),
+                        SizedBox(width: 8),
+                        Text(
+                          '⚠️ [АНОМАЛЬНОЕ ПОЛЕ ОБНАРУЖЕНО!]',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         );
     }
   }
 }
 
-/// Simulated Viewfinder for emulator / devices without camera permissions
+/// Dynamic Crosshair Reticle Painter for Thermal Mode
+class CrosshairReticlePainter extends CustomPainter {
+  final Color color;
+  CrosshairReticlePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    canvas.drawCircle(center, 18, paint);
+
+    // Cross lines with center gap
+    canvas.drawLine(Offset(center.dx - 32, center.dy), Offset(center.dx - 8, center.dy), paint);
+    canvas.drawLine(Offset(center.dx + 8, center.dy), Offset(center.dx + 32, center.dy), paint);
+    canvas.drawLine(Offset(center.dx, center.dy - 32), Offset(center.dx, center.dy - 8), paint);
+    canvas.drawLine(Offset(center.dx, center.dy + 8), Offset(center.dx, center.dy + 32), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CrosshairReticlePainter oldDelegate) => oldDelegate.color != color;
+}
+
+/// Simulated Viewfinder for emulators / devices without camera hardware
 class SimulatedViewfinder extends StatelessWidget {
   const SimulatedViewfinder({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF0C130F),
-      child: CustomPaint(
-        painter: SimulatedViewfinderPainter(),
+      decoration: const BoxDecoration(
+        gradient: RadialGradient(
+          center: Alignment.center,
+          radius: 1.0,
+          colors: [Color(0xFF0F1A15), Color(0xFF050807), Colors.black],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.camera, color: Colors.white.withValues(alpha: 0.15), size: 72),
+            const SizedBox(height: 12),
+            Text(
+              'AR VIEWFINDER SENSOR ACTIVE',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.25),
+                letterSpacing: 2.5,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class SimulatedViewfinderPainter extends CustomPainter {
+/// Four corner framing brackets painter
+class FramingCornersPainter extends CustomPainter {
+  final Color color;
+  FramingCornersPainter({required this.color});
+
   @override
   void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = const Color(0xFF1B2E24)
-      ..strokeWidth = 1.0
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke;
 
-    const step = 48.0;
-    for (double x = 0; x < size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-    for (double y = 0; y < size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
+    const cornerLength = 26.0;
+    const pad = 24.0;
 
-    final cx = size.width / 2;
-    final cy = size.height / 2;
+    // Top-Left
+    canvas.drawLine(const Offset(pad, pad), const Offset(pad + cornerLength, pad), paint);
+    canvas.drawLine(const Offset(pad, pad), const Offset(pad, pad + cornerLength), paint);
 
-    final crossPaint = Paint()
-      ..color = const Color(0xFF335C45)
-      ..strokeWidth = 1.5;
+    // Top-Right
+    canvas.drawLine(Offset(size.width - pad, pad), Offset(size.width - pad - cornerLength, pad), paint);
+    canvas.drawLine(Offset(size.width - pad, pad), Offset(size.width - pad, pad + cornerLength), paint);
 
-    canvas.drawLine(Offset(cx - 24, cy), Offset(cx + 24, cy), crossPaint);
-    canvas.drawLine(Offset(cx, cy - 24), Offset(cx, cy + 24), crossPaint);
+    // Bottom-Left
+    canvas.drawLine(Offset(pad, size.height - pad), Offset(pad + cornerLength, size.height - pad), paint);
+    canvas.drawLine(Offset(pad, size.height - pad), Offset(pad, size.height - pad - cornerLength), paint);
 
-    final ringPaint = Paint()
-      ..color = const Color(0xFF264534)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-
-    canvas.drawCircle(Offset(cx, cy), 48, ringPaint);
-    canvas.drawCircle(Offset(cx, cy), 110, ringPaint);
+    // Bottom-Right
+    canvas.drawLine(Offset(size.width - pad, size.height - pad), Offset(size.width - pad - cornerLength, size.height - pad), paint);
+    canvas.drawLine(Offset(size.width - pad, size.height - pad), Offset(size.width - pad, size.height - pad - cornerLength), paint);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant FramingCornersPainter oldDelegate) => false;
 }
