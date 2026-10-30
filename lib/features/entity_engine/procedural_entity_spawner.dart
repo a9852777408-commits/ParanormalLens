@@ -13,6 +13,7 @@ class ProceduralEntityInstance {
   final String rarity;
   double distance; // in meters (approach depth)
   double scale;
+  bool isScanned; // Prevents infinite scanning of the same active encounter
 
   ProceduralEntityInstance({
     required this.seed,
@@ -23,11 +24,12 @@ class ProceduralEntityInstance {
     required this.rarity,
     this.distance = 3.5,
     this.scale = 1.0,
+    this.isScanned = false,
   });
 }
 
 /// Advanced Procedural Spawner supporting:
-/// - Real-time 3D AR Gyroscope spatial anchoring (phantom stays anchored in room space upon phone rotation).
+/// - Real-time 3D AR Gyroscope & Accelerometer spatial anchoring (phantom stays anchored in room space upon phone rotation).
 /// - "Темный Летун из темноты" (Haunt Drone archetype gliding from darkness towards the viewer).
 /// - Inverted Raven flying downwards from window frames.
 /// - Motionless milky-white watcher when near cemeteries.
@@ -38,15 +40,21 @@ class ProceduralEntitySpawner extends ChangeNotifier {
 
   ProceduralEntityInstance? _currentEntity;
   StreamSubscription? _gyroSubscription;
+  StreamSubscription? _accelSubscription;
   Timer? _banishAnimationTimer;
   Timer? _entityApproachTimer;
   DateTime? _lastGyroTime;
+  double? _lastAx;
+  double? _lastAy;
 
   ProceduralEntityInstance? get currentEntity => _currentEntity;
   bool get hasActiveEntity => _currentEntity != null;
 
   void startCameraMotionMonitoring() {
     _gyroSubscription?.cancel();
+    _accelSubscription?.cancel();
+
+    // 1. Gyroscope Monitoring (Angular velocity on phones with hardware gyro)
     try {
       _gyroSubscription = gyroscopeEventStream().listen((GyroscopeEvent event) {
         final now = DateTime.now();
@@ -55,14 +63,15 @@ class ProceduralEntitySpawner extends ChangeNotifier {
             : (now.difference(_lastGyroTime!).inMicroseconds / 1000000.0).clamp(0.005, 0.06);
         _lastGyroTime = now;
 
-        // 1. AR Spatial Anchoring: If an entity is present, anchor it to 3D room coordinates
         if (_currentEntity != null && _currentEntity!.banishProgress <= 0.0) {
-          // In phone portrait:
-          // event.y is yaw angular rate (horizontal rotation)
-          // event.x is pitch angular rate (vertical tilt)
-          const sensitivity = 0.82;
-          final dxShift = -event.y * dt * sensitivity;
-          final dyShift = event.x * dt * sensitivity;
+          const sensitivityX = 2.10;
+          const sensitivityY = 1.85;
+
+          final yawRate = (event.y * 0.75 + event.z * 0.65);
+          final pitchRate = event.x;
+
+          final dxShift = -yawRate * dt * sensitivityX;
+          final dyShift = pitchRate * dt * sensitivityY;
 
           _currentEntity!.screenPosition = Offset(
             _currentEntity!.screenPosition.dx + dxShift,
@@ -71,10 +80,10 @@ class ProceduralEntitySpawner extends ChangeNotifier {
           notifyListeners();
         }
 
-        // 2. Motion Spawning Trigger: sudden camera pans when no entity is active
+        // Motion Spawning Trigger on sudden pans
         double rotationRate = sqrt(event.x * event.x + event.y * event.y + event.z * event.z);
-        if (rotationRate > 1.9 && _currentEntity == null) {
-          if (Random().nextDouble() < 0.38) {
+        if (rotationRate > 2.2 && _currentEntity == null) {
+          if (Random().nextDouble() < 0.35) {
             _spawnContextualOrRandomEntity();
           }
         }
@@ -84,23 +93,60 @@ class ProceduralEntitySpawner extends ChangeNotifier {
     } catch (e) {
       debugPrint('[Sensor] Gyroscope monitoring failed to start: $e');
     }
+
+    // 2. Accelerometer Fallback & Motion Fusion (works on 100% of Android phones!)
+    try {
+      _accelSubscription = accelerometerEventStream().listen((AccelerometerEvent event) {
+        if (_currentEntity != null && _currentEntity!.banishProgress <= 0.0) {
+          if (_lastAx != null && _lastAy != null) {
+            final dAx = event.x - _lastAx!;
+            final dAy = event.y - _lastAy!;
+
+            // Significant tilt/turn movements shift entity in 3D room
+            if (dAx.abs() > 0.04 || dAy.abs() > 0.04) {
+              final dxShift = -dAx * 0.038;
+              final dyShift = dAy * 0.038;
+
+              _currentEntity!.screenPosition = Offset(
+                _currentEntity!.screenPosition.dx + dxShift,
+                _currentEntity!.screenPosition.dy + dyShift,
+              );
+              notifyListeners();
+            }
+          }
+          _lastAx = event.x;
+          _lastAy = event.y;
+        } else {
+          _lastAx = event.x;
+          _lastAy = event.y;
+        }
+      }, onError: (err) {
+        debugPrint('[Sensor] Accelerometer event error: $err');
+      });
+    } catch (e) {
+      debugPrint('[Sensor] Accelerometer failed to start: $e');
+    }
   }
 
   /// Archetype 6: "Темный Летун из темноты" (Haunt Drone gliding out of darkness towards the player)
   void triggerNightGlider({Offset? initialPosition}) {
     if (_currentEntity != null) return;
 
+    final rand = Random();
+    final side = rand.nextBool() ? 1.0 : -1.0;
+    final spawnPos = initialPosition ?? Offset(0.5 + side * 0.32, 0.35);
+
     _currentEntity = ProceduralEntityInstance(
-      seed: Random().nextDouble() * 100.0,
+      seed: rand.nextDouble() * 100.0,
       archetype: 6.0, // Dark Glider / Haunt Drone
-      screenPosition: initialPosition ?? const Offset(0.5, 0.35),
+      screenPosition: spawnPos,
       entityName: 'Темный Летун (Выходящий из тьмы)',
       rarity: 'legendary',
       distance: 6.0,
       scale: 0.6,
     );
 
-    debugPrint('[Entity] Haunt Drone emerged from deep shadows!');
+    debugPrint('[Entity] Haunt Drone emerged from deep shadows at $spawnPos!');
     notifyListeners();
 
     // Glides smoothly towards the player out of the dark depth
@@ -127,7 +173,7 @@ class ProceduralEntitySpawner extends ChangeNotifier {
     _currentEntity = ProceduralEntityInstance(
       seed: Random().nextDouble() * 50.0,
       archetype: 5.0, // Inverted Raven
-      screenPosition: const Offset(0.5, 0.25),
+      screenPosition: const Offset(0.5, 0.20),
       entityName: 'Инвертированный Ворон',
       rarity: 'rare',
       distance: 2.5,
@@ -145,7 +191,7 @@ class ProceduralEntitySpawner extends ChangeNotifier {
         );
         notifyListeners();
 
-        if (_currentEntity!.screenPosition.dy > 1.2) {
+        if (_currentEntity!.screenPosition.dy > 1.3) {
           timer.cancel();
           _currentEntity = null;
           notifyListeners();
@@ -158,10 +204,13 @@ class ProceduralEntitySpawner extends ChangeNotifier {
   void triggerCemeteryWhiteWatcher() {
     if (_currentEntity != null) return;
 
+    final rand = Random();
+    final side = rand.nextBool() ? 1.0 : -1.0;
+
     _currentEntity = ProceduralEntityInstance(
       seed: 777.0,
       archetype: 4.0, // White Cemetery Watcher
-      screenPosition: const Offset(0.5, 0.42),
+      screenPosition: Offset(0.5 + side * 0.35, 0.38),
       entityName: 'Белый Кладбищенский Страж',
       rarity: 'mythic',
       distance: 3.2,
@@ -181,34 +230,32 @@ class ProceduralEntitySpawner extends ChangeNotifier {
     String rarity;
 
     if (roll < 0.28) {
-      // Haunt Drone / Glider from the dark
       archetype = 6.0;
       name = 'Темный Летун (Из темноты)';
       rarity = 'legendary';
     } else if (roll < 0.50) {
-      // Flying Head with smoke trail
       archetype = 3.0;
       name = 'Летающий Морок (Голова со шлейфом)';
       rarity = 'uncommon';
     } else if (roll < 0.75) {
-      // Slender Peeker
       archetype = 0.0;
       name = 'Теневой Человек';
       rarity = 'common';
     } else {
-      // Low Lurker
       archetype = 1.0;
       name = 'Барабашка';
       rarity = 'common';
     }
 
+    // Spawn spatially positioned in room (off-center: requiring player to look around)
+    final side = rand.nextBool() ? 1.0 : -1.0;
+    final spawnX = (0.5 + side * (0.28 + rand.nextDouble() * 0.25));
+    final spawnY = (0.30 + rand.nextDouble() * 0.20);
+
     _currentEntity = ProceduralEntityInstance(
       seed: rand.nextDouble() * 100.0,
       archetype: archetype,
-      screenPosition: Offset(
-        0.35 + rand.nextDouble() * 0.3,
-        0.35 + rand.nextDouble() * 0.2,
-      ),
+      screenPosition: Offset(spawnX, spawnY),
       entityName: name,
       rarity: rarity,
       distance: archetype == 6.0 ? 5.5 : 3.0,
@@ -216,7 +263,6 @@ class ProceduralEntitySpawner extends ChangeNotifier {
     );
 
     if (archetype == 6.0) {
-      // Start gliding approach towards the viewer
       _entityApproachTimer?.cancel();
       _entityApproachTimer = Timer.periodic(const Duration(milliseconds: 40), (timer) {
         if (_currentEntity != null && _currentEntity!.archetype == 6.0) {
@@ -243,7 +289,7 @@ class ProceduralEntitySpawner extends ChangeNotifier {
     _banishAnimationTimer?.cancel();
     _entityApproachTimer?.cancel();
 
-    const duration = Duration(milliseconds: 2200); // 2.2s for solemn prayer & cross ritual
+    const duration = Duration(milliseconds: 2200);
     const interval = Duration(milliseconds: 30);
     int totalTicks = duration.inMilliseconds ~/ interval.inMilliseconds;
     int currentTick = 0;
@@ -264,13 +310,13 @@ class ProceduralEntitySpawner extends ChangeNotifier {
     });
   }
 
-  /// Force spawn for testing or direct summon
+  /// Force spawn for testing or direct summon from Bestiary
   void forceSpawnEntity(double archetype) {
     _currentEntity = null;
     notifyListeners();
 
     if (archetype == 6.0) {
-      triggerNightGlider();
+      triggerNightGlider(initialPosition: const Offset(0.35, 0.35));
     } else if (archetype == 4.0) {
       triggerCemeteryWhiteWatcher();
     } else if (archetype == 5.0) {
@@ -282,6 +328,7 @@ class ProceduralEntitySpawner extends ChangeNotifier {
 
   void stop() {
     _gyroSubscription?.cancel();
+    _accelSubscription?.cancel();
     _banishAnimationTimer?.cancel();
     _entityApproachTimer?.cancel();
     _currentEntity = null;

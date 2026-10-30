@@ -40,8 +40,8 @@ class BestiaryService extends ChangeNotifier {
   factory BestiaryService() => _instance;
   BestiaryService._internal();
 
-  // Initially some entities are researched, rest need to be captured by 3s lock-on!
-  final Set<String> _capturedIds = {'paul_first', 'domestic_poltergeist'};
+  // Fresh research diary: zero pre-captured ghosts. Discovered organically by scanning!
+  final Set<String> _capturedIds = <String>{};
 
   Set<String> get capturedIds => _capturedIds;
 
@@ -58,6 +58,8 @@ class BestiaryService extends ChangeNotifier {
 
   void captureAllForTesting() {
     _capturedIds.addAll([
+      'haunt_drone',
+      'shadow_stalker',
       'paul_first',
       'inverted_raven',
       'white_cemetery_watcher',
@@ -66,14 +68,12 @@ class BestiaryService extends ChangeNotifier {
       'jacob_bruce',
       'ostankino_prophetess',
       'banshee_evp_screamer',
-      'haunt_drone',
     ]);
     notifyListeners();
   }
 }
 
-/// In-game Bestiary / Paranormal Archive Screen:
-/// Supports progressive scanning capture (hold crosshair on ghost for 3 seconds)
+/// In-game Bestiary / Paranormal Archive Screen
 class BestiaryScreen extends StatefulWidget {
   const BestiaryScreen({super.key});
 
@@ -89,15 +89,29 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
       id: 'haunt_drone',
       name: 'Темный Летун (Из темноты)',
       rarity: 'Legendary',
-      location: 'Дверной проем / Ночная улица / Гараж',
+      location: 'Дверной проем / Ночная комната / Гараж',
       timestamp: '03:15 AM (Внезапное появление)',
-      lore: 'Массивная крылатая сущность, бесшумно выплывающая из глубокого мрака. Имеет светящиеся демонические глаза и широко распахнутые руки-крылья.',
+      lore: 'Массивная парящая сущность, бесшумно выплывающая из глубокого мрака. Имеет светящиеся демонические глаза и широко распахнутые руки-крылья.',
       weakness: 'Прямой луч фонаря, освящение крестным знамением и чтение защитной молитвы.',
       emfLevel: 22.4,
       dangerLevel: 5,
       icon: Icons.air,
       glowColor: Color(0xFFFFD166),
       archetypeId: 6.0,
+    ),
+    AnomalyCardModel(
+      id: 'shadow_stalker',
+      name: 'Теневой Человек',
+      rarity: 'Common',
+      location: 'Коридоры / Углы обзора',
+      timestamp: '01:40 AM',
+      lore: 'Вытянутый антропоморфный силуэт из сгустка абсолютной тьмы. Исчезает при прямом взгляде, но фиксируется в ИК-диапазоне.',
+      weakness: 'Освещение свыше 500 люмен, молитва «Да воскреснет Бог».',
+      emfLevel: 7.2,
+      dangerLevel: 2,
+      icon: Icons.person,
+      glowColor: Color(0xFFE63946),
+      archetypeId: 0.0,
     ),
     AnomalyCardModel(
       id: 'paul_first',
@@ -180,52 +194,39 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
       emfLevel: 16.8,
       dangerLevel: 4,
       icon: Icons.auto_stories,
-      glowColor: Color(0xFF9D4EDD),
+      glowColor: Color(0xFF7209B7),
       archetypeId: 0.0,
     ),
     AnomalyCardModel(
       id: 'ostankino_prophetess',
-      name: 'Вещая старуха Останкино',
-      rarity: 'Legendary',
-      location: 'Останкинская усадьба, Москва',
-      timestamp: 'Полночь перед грозой',
-      lore: 'Сгорбленная старуха с клюкой, являющаяся перед крупными пожарами и предупреждающая об опасности.',
-      weakness: 'Поклон до земли, молчание при встрече.',
-      emfLevel: 13.1,
-      dangerLevel: 4,
-      icon: Icons.elderly,
-      glowColor: Color(0xFFFF5400),
-      archetypeId: 0.0,
-    ),
-    AnomalyCardModel(
-      id: 'banshee_evp_screamer',
-      name: 'Крикливая Тень (Банши)',
+      name: 'Останкинская Вещунья',
       rarity: 'Mythic',
-      location: 'Радиопомехи / Эфир 50Гц',
-      timestamp: '03:33 AM',
-      lore: 'Бесформенный сгусток высокочастотного крика, перегружающий микрофоны и искажающий оптику камеры.',
-      weakness: 'Громкий колокольный звон, священное освящение.',
+      location: 'Останкинская башня / Болота',
+      timestamp: '04:12 AM',
+      lore: 'Сгорбленная старуха с клюкой, возникающая перед катастрофами и пожарами. Шепчет неразборчивые пророчества.',
+      weakness: 'Поклон до земли, чтение молитвы святому Трифону.',
       emfLevel: 21.0,
       dangerLevel: 5,
-      icon: Icons.record_voice_over,
-      glowColor: Color(0xFFFF0054),
-      archetypeId: 2.0,
+      icon: Icons.elderly_woman,
+      glowColor: Color(0xFFF72585),
+      archetypeId: 0.0,
     ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final profile = GeoAdaptationService().activeProfile;
+    final geo = GeoAdaptationService();
+    final profile = geo.activeProfile;
     final bestiaryService = BestiaryService();
 
     return AnimatedBuilder(
       animation: bestiaryService,
       builder: (context, _) {
-        final capturedCount = bestiaryService.capturedIds.length;
-
+        final capturedSet = bestiaryService.capturedIds;
         List<AnomalyCardModel> displayedList = anomalies;
+
         if (_selectedFilterTab == 1) {
-          displayedList = anomalies.where((a) => bestiaryService.isCaptured(a.id)).toList();
+          displayedList = anomalies.where((a) => capturedSet.contains(a.id)).toList();
         } else if (_selectedFilterTab == 2) {
           displayedList = anomalies.where((a) => a.dangerLevel >= 4).toList();
         }
@@ -233,27 +234,26 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
         return Scaffold(
           backgroundColor: const Color(0xFF0A0F0D),
           appBar: AppBar(
-            backgroundColor: const Color(0xFF101B14),
+            backgroundColor: const Color(0xFF0F1A15),
             elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
-              onPressed: () => Navigator.pop(context),
-            ),
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'БЕСТИАРИЙ АНОМАЛИЙ',
                   style: TextStyle(
-                    color: profile.aesthetic.accent,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
                   ),
                 ),
                 Text(
-                  'ИССЛЕДОВАНО: $capturedCount ИЗ ${anomalies.length} (УДЕРЖИВАЙТЕ ПРИЦЕЛ 3 СЕК ДЛЯ ЗАХВАТА)',
-                  style: const TextStyle(color: Colors.white54, fontSize: 8, letterSpacing: 0.8),
+                  'ИССЛЕДОВАНО: ${capturedSet.length} ИЗ ${anomalies.length} (УДЕРЖИВАЙТЕ ПРИЦЕЛ 3 СЕК)',
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: profile.aesthetic.accent,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ],
             ),
@@ -262,10 +262,13 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
                 onPressed: () {
                   bestiaryService.captureAllForTesting();
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('🔓 Все сущности открыты для тестирования!')),
+                    const SnackBar(
+                      content: Text('🔓 Все сущности открыты для тестирования!'),
+                      duration: Duration(seconds: 1),
+                    ),
                   );
                 },
-                child: const Text('Открыть все', style: TextStyle(color: Colors.amberAccent, fontSize: 11)),
+                child: const Text('Открыть все', style: TextStyle(color: Colors.amber, fontSize: 11)),
               ),
             ],
           ),
@@ -273,35 +276,54 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
             children: [
               // Filter Tabs
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 child: Row(
                   children: [
                     _buildTabButton('Все (${anomalies.length})', 0, profile),
                     const SizedBox(width: 8),
-                    _buildTabButton('Изученные ($capturedCount)', 1, profile),
+                    _buildTabButton('Изученные (${capturedSet.length})', 1, profile),
                     const SizedBox(width: 8),
                     _buildTabButton('Опасные (💀 4-5)', 2, profile),
                   ],
                 ),
               ),
 
-              // Cards Grid
+              // Anomaly Grid with Ghost Illustrations
               Expanded(
-                child: GridView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.72,
-                  ),
-                  itemCount: displayedList.length,
-                  itemBuilder: (context, index) {
-                    final item = displayedList[index];
-                    final isCaptured = bestiaryService.isCaptured(item.id);
-                    return _buildAnomalyCard(item, profile, isCaptured);
-                  },
-                ),
+                child: displayedList.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.search_off, size: 48, color: Colors.white24),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Нет изученных сущностей',
+                              style: TextStyle(color: Colors.white54, fontSize: 14),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Наведите перекрестие камеры на призрака на 3 сек',
+                              style: TextStyle(color: profile.aesthetic.accent, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      )
+                    : GridView.builder(
+                        padding: const EdgeInsets.all(12),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.68,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                        ),
+                        itemCount: displayedList.length,
+                        itemBuilder: (context, index) {
+                          final item = displayedList[index];
+                          final isCaptured = bestiaryService.isCaptured(item.id);
+                          return _buildAnomalyCard(item, profile, isCaptured);
+                        },
+                      ),
               ),
             ],
           ),
@@ -346,13 +368,13 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
           color: isCaptured ? const Color(0xFF121E17) : const Color(0xFF0C130F),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isCaptured ? item.glowColor.withOpacity(0.5) : Colors.white12,
+            color: isCaptured ? item.glowColor.withValues(alpha: 0.5) : Colors.white12,
             width: isCaptured ? 1.4 : 1.0,
           ),
           boxShadow: isCaptured
               ? [
                   BoxShadow(
-                    color: item.glowColor.withOpacity(0.15),
+                    color: item.glowColor.withValues(alpha: 0.15),
                     blurRadius: 10,
                     spreadRadius: 1,
                   ),
@@ -370,7 +392,7 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: isCaptured ? item.glowColor.withOpacity(0.2) : Colors.white10,
+                    color: isCaptured ? item.glowColor.withValues(alpha: 0.2) : Colors.white10,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -390,52 +412,35 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
               ],
             ),
 
-            const Spacer(),
+            const SizedBox(height: 6),
 
-            // Glowing Phantom Icon or Lock
-            Center(
-              child: Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isCaptured ? item.glowColor.withOpacity(0.15) : Colors.white.withOpacity(0.04),
-                  border: Border.all(
-                    color: isCaptured ? item.glowColor.withOpacity(0.6) : Colors.white12,
-                    width: 1.5,
-                  ),
-                  boxShadow: isCaptured
-                      ? [
-                          BoxShadow(
-                            color: item.glowColor.withOpacity(0.3),
-                            blurRadius: 12,
-                            spreadRadius: 1,
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Icon(
-                  isCaptured ? item.icon : Icons.help_outline,
-                  color: isCaptured ? item.glowColor : Colors.white24,
-                  size: 28,
+            // Atmospheric Ghost Illustration / Silhouette
+            Expanded(
+              child: Center(
+                child: PhantomArtWidget(
+                  anomalyId: item.id,
+                  glowColor: item.glowColor,
+                  isCaptured: isCaptured,
+                  size: 92,
                 ),
               ),
             ),
 
-            const Spacer(),
+            const SizedBox(height: 6),
 
-            // Name
+            // Entity Name
             Text(
-              isCaptured ? item.name : '??? Аномалия',
+              isCaptured ? item.name : '??? Неизвестная тень',
+              style: TextStyle(
+                color: isCaptured ? Colors.white : Colors.white54,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isCaptured ? Colors.white : Colors.white38,
-                fontWeight: FontWeight.bold,
-                fontSize: 11,
-              ),
             ),
-            const SizedBox(height: 2),
+
+            const SizedBox(height: 4),
 
             // EMF or Scan Hint
             if (isCaptured)
@@ -494,21 +499,15 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // Ghost Portrait and Header Info
               Row(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isCaptured ? item.glowColor.withOpacity(0.2) : Colors.white10,
-                      border: Border.all(color: isCaptured ? item.glowColor : Colors.white24),
-                    ),
-                    child: Icon(
-                      isCaptured ? item.icon : Icons.help_outline,
-                      color: isCaptured ? item.glowColor : Colors.white38,
-                      size: 26,
-                    ),
+                  PhantomArtWidget(
+                    anomalyId: item.id,
+                    glowColor: item.glowColor,
+                    isCaptured: isCaptured,
+                    size: 80,
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -533,12 +532,21 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                        if (isCaptured) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            item.timestamp,
+                            style: const TextStyle(color: Colors.white54, fontSize: 10),
+                          ),
+                        ],
                       ],
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 16),
+
+              // Lore and Details
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -549,43 +557,61 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('ОПИСАНИЕ СУЩНОСТИ:', style: TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.bold)),
+                    const Text(
+                      'ОПИСАНИЕ И ЛОР:',
+                      style: TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.bold),
+                    ),
                     const SizedBox(height: 4),
                     Text(
-                      isCaptured ? item.lore : 'Данные зашифрованы. Наведите камеру на аномалию и удерживайте перекрестие ровно 3 секунды для снятия слепка частот.',
-                      style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4),
+                      isCaptured
+                          ? item.lore
+                          : 'Данные засекречены. Для идентификации наведите перекрестие видоискателя на фантом и удерживайте 3 секунды.',
+                      style: TextStyle(
+                        color: isCaptured ? Colors.white70 : Colors.white38,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                    const Text('МЕТОД ИЗГНАНИЯ / УЯЗВИМОСТЬ:', style: TextStyle(color: Colors.amber, fontSize: 9, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    Text(
-                      isCaptured ? item.weakness : 'Освящение Животворящим Крестом и колокольным звоном.',
-                      style: const TextStyle(color: Colors.amberAccent, fontSize: 12),
-                    ),
+                    if (isCaptured) ...[
+                      const SizedBox(height: 12),
+                      const Text(
+                        'СПОСОБ ИЗГНАНИЯ / УЯЗВИМОСТЬ:',
+                        style: TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        item.weakness,
+                        style: TextStyle(color: profile.aesthetic.accent, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ],
                   ],
                 ),
               ),
+
               const SizedBox(height: 16),
+
+              // Action Buttons: Play EVP Audio & Summon into Viewfinder
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF14241B),
                         foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white24),
                         padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                       onPressed: () {
                         AudioService().playEntityWhispers();
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('📻 Воспроизведение EVP-частоты аномалии...'),
+                            content: Text('📻 Воспроизведение EVP радиоперехвата сущности...'),
                             duration: Duration(seconds: 2),
                           ),
                         );
                       },
-                      icon: const Icon(Icons.volume_up, size: 16),
-                      label: const Text('Слушать EVP'),
+                      icon: const Icon(Icons.graphic_eq, size: 16),
+                      label: const Text('EVP Аудио', style: TextStyle(fontSize: 12)),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -595,30 +621,245 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
                         backgroundColor: profile.aesthetic.accent,
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                       onPressed: () {
-                        // Immediately spawn this entity in viewfinder for testing!
                         ProceduralEntitySpawner().forceSpawnEntity(item.archetypeId);
-                        Navigator.pop(context); // close modal
-                        Navigator.pop(context); // back to camera
+                        Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('⚡ «${item.name}» призвана в видоискатель! Поворачивайте телефон.'),
-                            duration: const Duration(seconds: 3),
+                            backgroundColor: const Color(0xFF2E2414),
+                            content: Row(
+                              children: [
+                                const Icon(Icons.visibility, color: Colors.amber),
+                                const SizedBox(width: 8),
+                                Expanded(child: Text('👻 «${item.name}» материализован в видоискателе!')),
+                              ],
+                            ),
+                            duration: const Duration(seconds: 2),
                           ),
                         );
                       },
-                      icon: const Icon(Icons.visibility, size: 16),
-                      label: const Text('Призвать'),
+                      icon: const Icon(Icons.radar, size: 16),
+                      label: const Text('Призвать', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
             ],
           ),
         );
       },
     );
   }
+}
+
+/// Custom Atmospheric Ghost Art Painter
+/// Generates atmospheric spectral illustrations for each specific entity archetype
+class PhantomArtWidget extends StatelessWidget {
+  final String anomalyId;
+  final Color glowColor;
+  final bool isCaptured;
+  final double size;
+
+  const PhantomArtWidget({
+    super.key,
+    required this.anomalyId,
+    required this.glowColor,
+    required this.isCaptured,
+    required this.size,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isCaptured ? glowColor.withValues(alpha: 0.6) : Colors.white12,
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isCaptured ? glowColor : Colors.black).withValues(alpha: 0.25),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(11),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CustomPaint(
+              size: Size(size, size),
+              painter: _PhantomArtPainter(
+                anomalyId: anomalyId,
+                glowColor: glowColor,
+                isCaptured: isCaptured,
+              ),
+            ),
+            if (!isCaptured)
+              Container(
+                color: Colors.black.withValues(alpha: 0.65),
+                child: const Center(
+                  child: Icon(Icons.lock, color: Colors.white30, size: 28),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PhantomArtPainter extends CustomPainter {
+  final String anomalyId;
+  final Color glowColor;
+  final bool isCaptured;
+
+  _PhantomArtPainter({
+    required this.anomalyId,
+    required this.glowColor,
+    required this.isCaptured,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // 1. Dark Vignette / Misty Background
+    final bgPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          (isCaptured ? glowColor : Colors.white12).withValues(alpha: 0.22),
+          const Color(0xFF070B09),
+          Colors.black,
+        ],
+        stops: const [0.0, 0.65, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawRect(Rect.fromLTWH(0, 0, w, h), bgPaint);
+
+    final ghostColor = isCaptured ? const Color(0xFF161C19) : const Color(0xFF1E2622);
+    final silhouettePaint = Paint()
+      ..color = ghostColor
+      ..style = PaintingStyle.fill;
+
+    final glowEyePaint = Paint()
+      ..color = isCaptured ? glowColor : Colors.white24
+      ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 3.0);
+
+    // 2. Archetype-specific atmospheric painting:
+    switch (anomalyId) {
+      case 'haunt_drone':
+        // Winged demon gliding from dark (as in user's video screenshot)
+        final path = Path();
+        path.moveTo(w * 0.5, h * 0.18); // Head top
+        path.quadraticBezierTo(w * 0.58, h * 0.28, w * 0.88, h * 0.32); // Right wing tip
+        path.quadraticBezierTo(w * 0.72, h * 0.52, w * 0.58, h * 0.68);
+        path.quadraticBezierTo(w * 0.52, h * 0.90, w * 0.5, h * 0.85); // Tail
+        path.quadraticBezierTo(w * 0.48, h * 0.90, w * 0.42, h * 0.68);
+        path.quadraticBezierTo(w * 0.28, h * 0.52, w * 0.12, h * 0.32); // Left wing tip
+        path.quadraticBezierTo(w * 0.42, h * 0.28, w * 0.5, h * 0.18);
+        canvas.drawPath(path, silhouettePaint);
+
+        // Glowing demonic yellow-white eyes
+        canvas.drawCircle(Offset(w * 0.45, h * 0.28), 2.2, glowEyePaint);
+        canvas.drawCircle(Offset(w * 0.55, h * 0.28), 2.2, glowEyePaint);
+        break;
+
+      case 'paul_first':
+        // Imperial 18th century silhouette with tricorn and candle
+        final path = Path();
+        // Tricorn hat
+        path.moveTo(w * 0.5, h * 0.14);
+        path.lineTo(w * 0.68, h * 0.22);
+        path.lineTo(w * 0.32, h * 0.22);
+        path.close();
+        // Head and imperial cloak
+        path.addOval(Rect.fromCenter(center: Offset(w * 0.5, h * 0.28), width: w * 0.22, height: h * 0.22));
+        path.moveTo(w * 0.35, h * 0.38);
+        path.lineTo(w * 0.65, h * 0.38);
+        path.lineTo(w * 0.78, h * 0.88);
+        path.lineTo(w * 0.22, h * 0.88);
+        path.close();
+        canvas.drawPath(path, silhouettePaint);
+
+        // Candle flame
+        final candlePaint = Paint()
+          ..color = Colors.amberAccent
+          ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 4.0);
+        canvas.drawCircle(Offset(w * 0.72, h * 0.50), 3.5, candlePaint);
+        break;
+
+      case 'inverted_raven':
+        // Inverted corvid perched upside down
+        final path = Path();
+        path.moveTo(w * 0.5, h * 0.78); // Perched feet
+        path.lineTo(w * 0.66, h * 0.55); // Wing
+        path.lineTo(w * 0.58, h * 0.25); // Head pointing down
+        path.lineTo(w * 0.50, h * 0.18); // Beak
+        path.lineTo(w * 0.42, h * 0.25);
+        path.lineTo(w * 0.34, h * 0.55);
+        path.close();
+        canvas.drawPath(path, silhouettePaint);
+
+        // Amber raven eye
+        canvas.drawCircle(Offset(w * 0.48, h * 0.26), 2.0, glowEyePaint);
+        break;
+
+      case 'white_cemetery_watcher':
+        // Luminous white ethereal spirit
+        final whiteSpiritPaint = Paint()
+          ..color = (isCaptured ? Colors.white : Colors.white30).withValues(alpha: 0.85)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 6.0);
+        canvas.drawOval(
+          Rect.fromCenter(center: Offset(w * 0.5, h * 0.42), width: w * 0.32, height: h * 0.55),
+          whiteSpiritPaint,
+        );
+        // Head halo
+        canvas.drawCircle(Offset(w * 0.5, h * 0.22), w * 0.14, whiteSpiritPaint);
+        break;
+
+      case 'flying_head_phantom':
+        // Floating skull with smoke trail
+        canvas.drawCircle(Offset(w * 0.5, h * 0.32), w * 0.18, silhouettePaint);
+        final trail = Path();
+        trail.moveTo(w * 0.36, h * 0.40);
+        trail.quadraticBezierTo(w * 0.65, h * 0.58, w * 0.45, h * 0.85);
+        trail.quadraticBezierTo(w * 0.35, h * 0.68, w * 0.55, h * 0.45);
+        canvas.drawPath(trail, silhouettePaint);
+
+        // Hollow glowing eye sockets
+        canvas.drawCircle(Offset(w * 0.44, h * 0.30), 2.5, glowEyePaint);
+        canvas.drawCircle(Offset(w * 0.56, h * 0.30), 2.5, glowEyePaint);
+        break;
+
+      default:
+        // Slender shadowy humanoid in fog
+        final path = Path();
+        path.addOval(Rect.fromCenter(center: Offset(w * 0.5, h * 0.24), width: w * 0.22, height: h * 0.24));
+        path.moveTo(w * 0.32, h * 0.36);
+        path.lineTo(w * 0.68, h * 0.36);
+        path.lineTo(w * 0.74, h * 0.88);
+        path.lineTo(w * 0.26, h * 0.88);
+        path.close();
+        canvas.drawPath(path, silhouettePaint);
+
+        // Piercing eyes
+        canvas.drawCircle(Offset(w * 0.45, h * 0.24), 2.2, glowEyePaint);
+        canvas.drawCircle(Offset(w * 0.55, h * 0.24), 2.2, glowEyePaint);
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PhantomArtPainter oldDelegate) =>
+      oldDelegate.isCaptured != isCaptured || oldDelegate.anomalyId != anomalyId;
 }

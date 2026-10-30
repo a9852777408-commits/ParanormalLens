@@ -63,24 +63,20 @@ jobs:
         continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.4
-          name: "PL v1.0.4 - Natural Exorcism: Mic Prayer Recognition & Cross Radiant Godrays"
+          tag_name: v1.0.5
+          name: "PL v1.0.5 - Real Cross Vision AI, 3D AR Motion Fusion, Custom Ghost Art & Zero-Overlap UI"
           body: |
-            ### 👻 PL v1.0.4 - Natural Exorcism Update (Voice Prayer & Sacred Cross)
-            - **No More Screen Buttons for Exorcism**: The manual "Освятить" button has been completely removed. Ghosts no longer vanish from tapping the screen.
-            - **Microphone Sacred Prayer Detection**:
-              - Continuously listens for spoken prayers via speech recognition and acoustic vocal chanting detection.
-              - Recognizes sacred prayers: "Отче наш", "Господи помилуй", "Изыди", "Да воскреснет Бог", "Святый Боже", "Аминь", "Христос", etc.
-              - Holy bells sound and active phantoms shriek and evaporate into divine embers.
-            - **Cross in Frame Recognition & Divine Radiance**:
-              - Detects crucifixes, crosses, or holy symbols in the camera viewfinder.
-              - **Volumetric golden godrays and glowing halation rings actively radiate directly from the cross in frame**.
-              - Concentrated beams of holy light strike from the cross into the phantom, incinerating it.
-            - **Streamlined Bottom Bar**: Two equal 50% buttons [Радар аномалий | Бестиарий] without clutter.
+            ### 👻 PL v1.0.5 - Major Vision, AR Motion & Bestiary Overhaul
+            - **Real Camera Cross Recognition**: Multi-scale computer vision detector recognizing Orthodox & Latin crosses directly in the live video stream (monitors, icons, walls, neck crosses), triggering radiant godrays and phantom incineration.
+            - **True 3D Spatial AR Motion Fusion**: Integrated dual Gyroscope + Accelerometer motion tracking. Phantoms now stay firmly anchored in physical 3D room coordinates on ALL devices (including Redmi/Xiaomi without hardware gyro).
+            - **Off-Screen Anomaly Radar Pointers**: When the phantom leaves the camera frame, directional HUD indicators (`◀ АНОМАЛИЯ СЛЕВА` / `АНОМАЛИЯ СПРАВА ▶`) guide the player where to look.
+            - **Infinite Scanning Fixed**: Phantoms are scanned once per encounter (`entity.isScanned = true`); scanner no longer loops repeatedly on the same entity.
+            - **Authentic Ghost Art in Bestiary**: Empty initial diary (zero unearned ghosts like Paul I); each entity now has custom atmospheric spectral illustrations in cards and dossiers instead of generic icons.
+            - **Zero-Overlap UI**: Fixed top bar 71px right overflow, elevated floating notifications above the toolbar, and cleanly separated OSD layers.
             
             **Direct Download:**
-            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.4/PL.apk)
-            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.4/PL-release.apk)
+            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.5/PL.apk)
+            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.5/PL-release.apk)
           files: |
             build/dist/PL.apk
             build/dist/PL-debug.apk

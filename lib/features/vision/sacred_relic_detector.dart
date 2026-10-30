@@ -1,12 +1,14 @@
 import 'dart:async';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../../core/services/geo_adaptation_service.dart';
 
 typedef SacredRelicCallback = void Function(Rect boundingBox, String objectLabel, Color glowColor);
 typedef CrossDetectedCallback = void Function(Offset center, Rect box);
 
-/// High-performance On-Device Offline Computer Vision Detector (5 Hz)
-/// Detects physical crosses, crucifixes, and sacred relics in the camera viewfinder.
+/// High-performance On-Device Offline Computer Vision Detector (5-7 Hz)
+/// Detects physical crosses, crucifixes, and sacred relics directly in the live camera video stream.
+/// Supports dark crosses on bright monitors/walls AND bright/gold crosses in dark rooms.
 class SacredRelicDetector {
   static final SacredRelicDetector _instance = SacredRelicDetector._internal();
   factory SacredRelicDetector() => _instance;
@@ -22,6 +24,8 @@ class SacredRelicDetector {
   Rect? _lastDetectedBox;
   Offset? _detectedCrossPosition;
   bool _isCrossActive = false;
+  DateTime _lastFrameTime = DateTime.now();
+  int _consecutiveMissedFrames = 0;
 
   bool get hasDetectedCross => _isCrossActive && _detectedCrossPosition != null;
   Offset? get detectedCrossCenter => _detectedCrossPosition;
@@ -33,7 +37,7 @@ class SacredRelicDetector {
     _inferenceLoopTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
       _processNextFrameSample();
     });
-    debugPrint('[Vision] 5 Hz offline cross & relic detector started.');
+    debugPrint('[Vision] Offline cross & relic detector active.');
   }
 
   void stopInferenceLoop() {
@@ -44,22 +48,127 @@ class SacredRelicDetector {
     _lastDetectedBox = null;
   }
 
-  /// Processes sample frame against the active cultural profile's recognized objects
   void _processNextFrameSample() {
     if (_isProcessingFrame) return;
     _isProcessingFrame = true;
 
     try {
       if (_isCrossActive && _detectedCrossPosition != null) {
-        onCrossDetected?.call(_detectedCrossPosition!, _lastDetectedBox ?? Rect.fromCenter(center: _detectedCrossPosition!, width: 0.3, height: 0.3));
+        onCrossDetected?.call(
+          _detectedCrossPosition!,
+          _lastDetectedBox ?? Rect.fromCenter(center: _detectedCrossPosition!, width: 0.32, height: 0.42),
+        );
         onSacredRelicDetected?.call(
-          _lastDetectedBox ?? Rect.fromCenter(center: _detectedCrossPosition!, width: 0.3, height: 0.3),
+          _lastDetectedBox ?? Rect.fromCenter(center: _detectedCrossPosition!, width: 0.32, height: 0.42),
           'Крест Православный',
           const Color(0xFFFFD700),
         );
       }
     } finally {
       _isProcessingFrame = false;
+    }
+  }
+
+  /// Real-time live frame processor: scans camera luminance for cross / crucifix geometries
+  void processCameraImage(CameraImage image) {
+    final now = DateTime.now();
+    // Process at ~6 Hz (every 160ms) to ensure smooth 60fps camera feed
+    if (now.difference(_lastFrameTime).inMilliseconds < 160) return;
+    _lastFrameTime = now;
+
+    if (image.planes.isEmpty) return;
+
+    try {
+      final bytes = image.planes[0].bytes;
+      final bytesPerRow = image.planes[0].bytesPerRow;
+      final width = image.width;
+      final height = image.height;
+
+      // Safe bounds checking helper
+      int getLuminance(int px, int py) {
+        final cx = px.clamp(0, width - 1);
+        final cy = py.clamp(0, height - 1);
+        return bytes[cy * bytesPerRow + cx];
+      }
+
+      int bestScore = 0;
+      int bestX = -1;
+      int bestY = -1;
+
+      // Multi-scale step grid: sample candidate cross centers
+      final stepX = (width ~/ 40).clamp(8, 24);
+      final stepY = (height ~/ 40).clamp(8, 24);
+
+      // Check radii for cross junctions (small to large crosses)
+      final radii = [10, 20, 32];
+
+      for (int y = stepY * 4; y < height - stepY * 4; y += stepY) {
+        for (int x = stepX * 4; x < width - stepX * 4; x += stepX) {
+          final centerVal = getLuminance(x, y);
+
+          for (final r in radii) {
+            // Cross Arm Pixels:
+            final top = getLuminance(x, y - r);
+            final bot = getLuminance(x, y + r);
+            final left = getLuminance(x - r, y);
+            final right = getLuminance(x + r, y);
+
+            final crossMean = (centerVal + top + bot + left + right) / 5.0;
+
+            // Diagonal Background Pixels:
+            final tl = getLuminance(x - r, y - r);
+            final tr = getLuminance(x + r, y - r);
+            final bl = getLuminance(x - r, y + r);
+            final br = getLuminance(x + r, y + r);
+
+            final bgMean = (tl + tr + bl + br) / 4.0;
+
+            // Contrast between cross arms and diagonal background
+            final contrast = (crossMean - bgMean).abs();
+            if (contrast < 22.0) continue;
+
+            // Vertical stroke consistency (top and bottom must match center more than background)
+            final vArmDiff = ((top - centerVal).abs() + (bot - centerVal).abs()) / 2.0;
+            // Horizontal stroke consistency (left and right must match center more than background)
+            final hArmDiff = ((left - centerVal).abs() + (right - centerVal).abs()) / 2.0;
+
+            // In a valid cross, arm variation must be significantly smaller than background contrast
+            if (vArmDiff > contrast * 0.85 || hArmDiff > contrast * 0.85) continue;
+
+            final score = (contrast * 2.0 - (vArmDiff + hArmDiff)).toInt();
+            if (score > bestScore) {
+              bestScore = score;
+              bestX = x;
+              bestY = y;
+            }
+          }
+        }
+      }
+
+      // If a strong cross junction is confirmed
+      if (bestScore > 36 && bestX > 0 && bestY > 0) {
+        _consecutiveMissedFrames = 0;
+
+        // Sensor orientation on Android portrait: 90° clockwise rotation
+        final normX = (bestY / height).clamp(0.05, 0.95);
+        final normY = (1.0 - (bestX / width)).clamp(0.05, 0.95);
+
+        feedCrossDetection(
+          Offset(normX, normY),
+          box: Rect.fromCenter(
+            center: Offset(normX, normY),
+            width: 0.32,
+            height: 0.42,
+          ),
+        );
+      } else {
+        _consecutiveMissedFrames++;
+        if (_consecutiveMissedFrames >= 4) {
+          clearCrossDetection();
+        }
+      }
+    } catch (e) {
+      debugPrint('[Vision] Frame processing error: $e');
     }
   }
 
@@ -85,7 +194,7 @@ class SacredRelicDetector {
   }
 
   /// Fallback/manual trigger for testing or camera target lock
-  void toggleCrossSimulation(bool active, [Offset center = const Offset(0.5, 0.45)]) {
+  void toggleCrossSimulation(bool active, [Offset center = const Offset(0.5, 0.42)]) {
     if (active) {
       feedCrossDetection(center);
     } else {
@@ -98,7 +207,11 @@ class SacredRelicDetector {
     final activeProfile = GeoAdaptationService().activeProfile;
     final recognizedList = activeProfile.sacredRelics.recognizedObjects;
 
-    if (confidence >= 0.60 && (recognizedList.contains(label) || label.toLowerCase().contains('cross') || label.toLowerCase().contains('крест'))) {
+    if (confidence >= 0.50 &&
+        (recognizedList.contains(label) ||
+            label.toLowerCase().contains('cross') ||
+            label.toLowerCase().contains('крест') ||
+            label.toLowerCase().contains('crucifix'))) {
       _lastDetectedBox = box;
       _detectedCrossPosition = box.center;
       _isCrossActive = true;

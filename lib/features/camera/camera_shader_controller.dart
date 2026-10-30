@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../entity_engine/procedural_entity_spawner.dart';
+import '../vision/sacred_relic_detector.dart';
 
 enum ActiveFilterType { normal, vhs, nightVision, thermal }
 
@@ -100,6 +101,9 @@ class CameraShaderController extends ChangeNotifier {
 
   Future<void> _setupCameraController(CameraDescription description) async {
     try {
+      if (_cameraController != null && _cameraController!.value.isStreamingImages) {
+        try { await _cameraController!.stopImageStream(); } catch (_) {}
+      }
       await _cameraController?.dispose();
       _cameraController = CameraController(
         description,
@@ -109,6 +113,15 @@ class CameraShaderController extends ChangeNotifier {
       );
 
       await _cameraController!.initialize();
+
+      // Start live video frame stream for cross recognition
+      try {
+        await _cameraController!.startImageStream((CameraImage image) {
+          SacredRelicDetector().processCameraImage(image);
+        });
+      } catch (streamErr) {
+        debugPrint('[Camera] Image stream not supported on this device/emulator: $streamErr');
+      }
     } catch (e) {
       debugPrint('[Camera] Error initializing CameraController: $e');
       _cameraController = null;

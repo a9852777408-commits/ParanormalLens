@@ -158,13 +158,15 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
   }
 
   /// 3-Second Scanning Check Loop: tracks if viewfinder crosshair is aimed at active ghost
+  /// Stops infinite scanning: checks `!entity.isScanned` and marks `entity.isScanned = true`
   void _startTargetingLoop() {
     _scanTimer?.cancel();
     _scanTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
       final spawner = ProceduralEntitySpawner();
       final entity = spawner.currentEntity;
 
-      if (entity != null && entity.banishProgress <= 0.0) {
+      // Only scan un-researched entities in the current encounter
+      if (entity != null && entity.banishProgress <= 0.0 && !entity.isScanned) {
         // Distance from screen center (0.5, 0.5) to ghost position
         final distToCenter = (entity.screenPosition - const Offset(0.5, 0.5)).distance;
 
@@ -176,6 +178,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
           _scanProgress += 0.1 / 3.0; // 3 seconds to reach 1.0
           if (_scanProgress >= 1.0) {
             _scanProgress = 1.0;
+            entity.isScanned = true; // Mark as scanned! Halts infinite loop!
             _onGhostScannedSuccessfully(entity);
           }
           if (mounted) setState(() {});
@@ -217,6 +220,8 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(bottom: 125, left: 16, right: 16),
           backgroundColor: const Color(0xFF1B2E1B),
           duration: const Duration(seconds: 3),
           content: Row(
@@ -268,6 +273,8 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.only(bottom: 125, left: 16, right: 16),
             backgroundColor: const Color(0xFF1A261A),
             duration: const Duration(seconds: 2),
             content: Row(
@@ -335,6 +342,8 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.only(bottom: 125, left: 16, right: 16),
             backgroundColor: Color(0xFF2E2414),
             content: Row(
               children: [
@@ -411,6 +420,8 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.only(bottom: 125, left: 16, right: 16),
             backgroundColor: Color(0xFF2E2414),
             content: Row(
               children: [
@@ -433,6 +444,8 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
       relic.clearCrossDetection();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(bottom: 125, left: 16, right: 16),
           content: Text('☦ Крест убран из поля зрения'),
           duration: Duration(seconds: 1),
         ),
@@ -441,6 +454,8 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
       relic.feedCrossDetection(const Offset(0.5, 0.40));
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(bottom: 125, left: 16, right: 16),
           backgroundColor: Color(0xFF2E2414),
           content: Row(
             children: [
@@ -473,6 +488,8 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
       AudioService().playJumpscareScreech();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.only(bottom: 125, left: 16, right: 16),
           content: Text('⚠️ [СКРЫТЫЙ СКРИМЕР АКТИВИРОВАН: 15 сек]'),
           duration: Duration(seconds: 2),
         ),
@@ -528,6 +545,54 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                   if (_isLockingOn && spawner.currentEntity != null)
                     _buildTargetLockRing(spawner.currentEntity!),
 
+                  // 3D Spatial Off-screen directional indicators
+                  if (spawner.currentEntity != null && spawner.currentEntity!.banishProgress <= 0.0) ...[
+                    if (spawner.currentEntity!.screenPosition.dx < 0.05)
+                      Positioned(
+                        left: 14,
+                        top: MediaQuery.of(context).size.height * 0.45,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.black87,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.redAccent, width: 1.5),
+                            boxShadow: const [BoxShadow(color: Colors.redAccent, blurRadius: 10)],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.arrow_back_ios, color: Colors.yellowAccent, size: 13),
+                              SizedBox(width: 4),
+                              Text('◀ АНОМАЛИЯ СЛЕВА', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (spawner.currentEntity!.screenPosition.dx > 0.95)
+                      Positioned(
+                        right: 14,
+                        top: MediaQuery.of(context).size.height * 0.45,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.black87,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.redAccent, width: 1.5),
+                            boxShadow: const [BoxShadow(color: Colors.redAccent, blurRadius: 10)],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('АНОМАЛИЯ СПРАВА ▶', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                              SizedBox(width: 4),
+                              Icon(Icons.arrow_forward_ios, color: Colors.yellowAccent, size: 13),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+
                   // 2. Divine Golden Radiance Overlay emanating from Cross in Frame
                   if (_isCrossInFrame)
                     CrossRadianceOverlay(
@@ -539,7 +604,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                   // Offline / Missing camera banner
                   if (!isCameraReady)
                     Positioned(
-                      top: 100,
+                      top: 105,
                       left: 16,
                       right: 16,
                       child: Container(
@@ -576,41 +641,78 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
           if (_isExorcismActive)
             _buildSacredExorcismRitualOverlay(),
 
-          // 4. Live Microphone Prayer Voice Ripple Indicator (under top bar)
+          // 4. Live Microphone Prayer Voice Ripple Indicator (under top bar, non-overlapping)
           _buildMicPrayerIndicator(),
 
-          // 5. Top HUD Bar (Positioned strictly at top under SafeArea)
+          // 4b. Cross Detected Active Status Badge
+          if (_isCrossInFrame)
+            Positioned(
+              top: 50,
+              left: 20,
+              right: 20,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2E2414).withValues(alpha: 0.90),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.amber, width: 1.5),
+                    boxShadow: const [
+                      BoxShadow(color: Colors.amber, blurRadius: 10, spreadRadius: 1),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.flare, color: Colors.amber, size: 15),
+                      SizedBox(width: 6),
+                      Text(
+                        '☦ [КРЕСТ ОБНАРУЖЕН: СИЯНИЕ АКТИВНО]',
+                        style: TextStyle(
+                          color: Colors.amberAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // 5. Top HUD Bar (Zero-overflow responsive layout)
           Positioned(
             top: 0,
             left: 0,
             right: 0,
             child: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 4.0),
+                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 4.0),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     // Brand & Secret Tap Header
                     GestureDetector(
                       onTap: _onHeaderTapped,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.black87,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: profile.aesthetic.accent.withValues(alpha: 0.4)),
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.radar, color: profile.aesthetic.accent, size: 18),
-                            const SizedBox(width: 6),
+                            Icon(Icons.radar, color: profile.aesthetic.accent, size: 16),
+                            const SizedBox(width: 4),
                             Text(
                               'PL',
                               style: TextStyle(
                                 color: profile.aesthetic.accent,
                                 fontWeight: FontWeight.w900,
-                                letterSpacing: 1.5,
-                                fontSize: 15,
+                                letterSpacing: 1.2,
+                                fontSize: 14,
                               ),
                             ),
                           ],
@@ -618,78 +720,84 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                       ),
                     ),
 
-                    // Test mode badge
+                    const SizedBox(width: 6),
+
+                    // Compact Test mode badge (Immune to screen overflow)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
                           colors: [Color(0xFF2A9D8F), Color(0xFF264653)],
                         ),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: const Color(0xFF2A9D8F)),
                       ),
                       child: const Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.lock_open, color: Colors.white, size: 13),
-                          SizedBox(width: 4),
+                          Icon(Icons.lock_open, color: Colors.white, size: 11),
+                          SizedBox(width: 3),
                           Text(
-                            'ВСЕ ФУНКЦИИ ОТКРЫТЫ',
+                            'ТЕСТ',
                             style: TextStyle(
                               color: Colors.white,
-                              fontSize: 10,
+                              fontSize: 9,
                               fontWeight: FontWeight.w900,
-                              letterSpacing: 0.8,
+                              letterSpacing: 0.5,
                             ),
                           ),
                         ],
                       ),
                     ),
 
+                    const Spacer(),
+
                     // Hardware Quick Controls + Cross / Mic Status
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Cross Presence Toggle (Test / Status)
+                        // Cross Presence Status / Manual Toggle
                         IconButton(
-                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          padding: const EdgeInsets.all(4),
                           tooltip: 'Показать/скрыть Крест',
                           icon: Icon(
                             _isCrossInFrame ? Icons.flare : Icons.church,
                             color: _isCrossInFrame ? Colors.amberAccent : Colors.white70,
-                            size: 21,
+                            size: 19,
                           ),
                           onPressed: _toggleCrossTest,
                         ),
 
                         // Torch
                         IconButton(
-                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          padding: const EdgeInsets.all(4),
                           icon: Icon(
                             camera.isTorchOn ? Icons.flashlight_on : Icons.flashlight_off,
                             color: camera.isTorchOn ? Colors.amber : Colors.white70,
-                            size: 20,
+                            size: 19,
                           ),
                           onPressed: () => camera.toggleTorch(),
                         ),
 
                         // Mute Audio
                         IconButton(
-                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          padding: const EdgeInsets.all(4),
                           icon: Icon(
                             AudioService().isMuted ? Icons.volume_off : Icons.volume_up,
                             color: AudioService().isMuted ? Colors.redAccent : profile.aesthetic.accent,
-                            size: 20,
+                            size: 19,
                           ),
                           onPressed: () => setState(() => AudioService().toggleMute()),
                         ),
 
                         // Flip Camera
                         IconButton(
-                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                          padding: EdgeInsets.zero,
-                          icon: Icon(Icons.flip_camera_ios, color: profile.aesthetic.accent, size: 20),
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          padding: const EdgeInsets.all(4),
+                          icon: Icon(Icons.flip_camera_ios, color: profile.aesthetic.accent, size: 19),
                           onPressed: () => camera.toggleCameraLens(),
                         ),
                       ],
@@ -777,6 +885,8 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                                 if (!context.mounted) return;
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
+                                    behavior: SnackBarBehavior.floating,
+                                    margin: const EdgeInsets.only(bottom: 125, left: 16, right: 16),
                                     content: Text(success
                                         ? '📡 Радар сканирует аномалии в радиусе 500м...'
                                         : '⚠️ Включите геолокацию на устройстве'),
@@ -816,7 +926,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                       ),
 
                       const SizedBox(height: 6),
-                      // Exorcism instruction pill (Replacing button with sacred mechanic guide)
+                      // Exorcism instruction pill (Sacred mechanic guide)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                         decoration: BoxDecoration(
@@ -874,7 +984,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     }
 
     return Positioned(
-      top: 54,
+      top: 50,
       left: 16,
       right: 16,
       child: Center(
@@ -991,6 +1101,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
 
   /// 3-Second Scanning Target Lock Ring Overlay
   Widget _buildTargetLockRing(ProceduralEntityInstance entity) {
+    if (entity.isScanned) return const SizedBox.shrink();
     return Positioned(
       left: MediaQuery.of(context).size.width * entity.screenPosition.dx - 45,
       top: MediaQuery.of(context).size.height * entity.screenPosition.dy - 45,
@@ -1144,7 +1255,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
               ),
             ),
             const Positioned(
-              top: 92, // Shifted down to prevent collision with top buttons!
+              top: 96, // Shifted down to prevent collision with top controls & mic badge
               left: 20,
               child: Text(
                 '1080p 60FPS • RAW SENSOR',
@@ -1172,7 +1283,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
           children: [
             // Top-left: Blinking red REC dot and mode
             Positioned(
-              top: 92, // Shifted down!
+              top: 96,
               left: 20,
               child: Row(
                 children: [
@@ -1216,7 +1327,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
 
             // Top-right: PLAY indicator
             const Positioned(
-              top: 92,
+              top: 96,
               right: 20,
               child: Text(
                 'PLAY  ▶',
@@ -1289,7 +1400,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
 
             // Top Status: IR-850nm ACTIVE, GAIN
             Positioned(
-              top: 92,
+              top: 96,
               left: 20,
               right: 20,
               child: Row(
@@ -1361,7 +1472,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
           children: [
             // Top: Thermal sensor model
             const Positioned(
-              top: 92,
+              top: 96,
               left: 20,
               child: Text(
                 'FLIR IRONBOW MATRIX • 60Hz',
@@ -1470,7 +1581,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
             // Prominent Anomalous Field Warning when crosshair is on ghost
             if (isAimingAtEntity)
               Positioned(
-                top: 120,
+                top: 125,
                 left: 20,
                 right: 20,
                 child: Center(
