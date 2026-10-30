@@ -51,31 +51,64 @@ void main() {
     float extraEyeGlow = 0.0;
 
     // ========================================================
+    // АРХЕТИП 7: ПРИЗРАК ПАВЛА I (GHOST OF PAUL I)
+    // Голографический бирюзово-синий контур в треуголке со свечой
+    // ========================================================
+    if (uArchetype >= 6.5) {
+        vec2 gp = p;
+        gp.y += sin(uTime * 2.5) * 0.015; // Медленное парение
+
+        // Треуголка и голова
+        float hat = length(vec2(gp.x * 1.5, gp.y - 0.22)) - 0.12;
+        float head = length(gp - vec2(0.0, 0.16)) - 0.07;
+        // Мундир с эполетами
+        float torso = length(vec2(gp.x * 1.4, gp.y + 0.04)) - 0.18;
+        // Рука со свечой
+        vec2 candlePos = vec2(-0.16, 0.02);
+        float candleArm = length(vec2((gp.x - candlePos.x) * 1.5, gp.y - candlePos.y)) - 0.06;
+
+        shape = min(min(hat, head), min(torso, candleArm));
+
+        // Свечение свечи
+        float flameDist = length(gp - (candlePos + vec2(0.0, 0.08)));
+        float flameGlow = smoothstep(0.06, 0.005, flameDist);
+
+        baseColor = vec3(0.05, 0.82, 0.98); // Голографический бирюзовый
+        if (flameGlow > 0.01) {
+            baseColor = mix(baseColor, vec3(1.8, 1.35, 0.4), flameGlow * 1.5);
+            alphaMultiplier = 0.95;
+        } else {
+            alphaMultiplier = 0.65; // Полупрозрачный голографический силуэт
+        }
+    }
+    // ========================================================
     // АРХЕТИП 6: ТЕМНЫЙ ЛЕТУН ИЗ ТЕМНОТЫ (HAUNT DRONE / NIGHT GLIDER)
     // ========================================================
-    if (uArchetype >= 5.5) {
-        // Парящий силуэт с широко распахнутыми когтистыми руками (как на видео)
+    else if (uArchetype >= 5.5 && uArchetype < 6.5) {
+        // Парящий силуэт с широко распахнутыми крыльями и рогами
         vec2 gp = p;
         gp.y += sin(uTime * 3.5) * 0.025; // Плавное парение в воздухе
         gp.x += cos(uTime * 2.1) * 0.018;
 
-        // Голова
-        float head = length(gp - vec2(0.0, 0.22)) - 0.09;
+        // Голова и рога
+        float head = length(gp - vec2(0.0, 0.22)) - 0.08;
+        float hornL = length(vec2(gp.x + 0.06, gp.y - 0.30) * vec2(2.0, 0.8)) - 0.05;
+        float hornR = length(vec2(gp.x - 0.06, gp.y - 0.30) * vec2(2.0, 0.8)) - 0.05;
 
         // Массивный балдахин / торс
         float torso = length(vec2(gp.x * 1.35, gp.y - 0.04)) - 0.21;
 
-        // Широко раскинутые руки-крылья, тянущиеся к зрителю
+        // Широко раскинутые перепончатые крылья
         float armSpread = 0.32;
-        float leftArm = length(vec2(gp.x + armSpread, gp.y - 0.06 + sin(gp.x * 6.0) * 0.03) * vec2(1.1, 2.2)) - 0.16;
-        float rightArm = length(vec2(gp.x - armSpread, gp.y - 0.06 - sin(gp.x * 6.0) * 0.03) * vec2(1.1, 2.2)) - 0.16;
+        float leftArm = length(vec2(gp.x + armSpread, gp.y - 0.08 + sin(gp.x * 6.0) * 0.03) * vec2(1.1, 2.2)) - 0.16;
+        float rightArm = length(vec2(gp.x - armSpread, gp.y - 0.08 - sin(gp.x * 6.0) * 0.03) * vec2(1.1, 2.2)) - 0.16;
 
         // Рваные края савана (fbm)
         float cloakSmoke = fbm(gp * 7.0 + vec2(0.0, -uTime * 0.5));
 
-        shape = min(head, min(torso, min(leftArm, rightArm))) + (cloakSmoke - 0.5) * 0.14;
+        shape = min(min(head, min(hornL, hornR)), min(torso, min(leftArm, rightArm))) + (cloakSmoke - 0.5) * 0.14;
 
-        // Пронзительные горящие демонические глаза (желто-белые светящиеся огоньки)
+        // Пронзительные горящие демонические глаза (желто-белые светящиеся огоньки на высоте головы!)
         vec2 eyeLeftPos = vec2(-0.034, 0.22);
         vec2 eyeRightPos = vec2(0.034, 0.22);
         float eyeL = length(gp - eyeLeftPos);
@@ -85,34 +118,38 @@ void main() {
         baseColor = vec3(0.015, 0.015, 0.02);
         if (eyesGlow > 0.02) {
             extraEyeGlow = clamp(eyesGlow * 2.0, 0.0, 1.0);
-            baseColor = mix(baseColor, vec3(1.6, 1.45, 0.8), extraEyeGlow);
+            baseColor = mix(baseColor, vec3(1.8, 1.45, 0.3), extraEyeGlow);
         }
     }
     // ========================================================
-    // АРХЕТИП 3: ЛЕТАЮЩАЯ ГОЛОВА С ЧЕРНЫМ ШЛЕЙФОМ
+    // АРХЕТИП 3: ЛЕТАЮЩИЙ МОРОК (ЧЕРЕП СО ШЛЕЙФОМ ДЫМА)
     // ========================================================
     else if (uArchetype >= 2.5 && uArchetype < 3.5) {
-        vec2 headCenter = vec2(0.0, 0.08);
-        float head = length(p - headCenter) - 0.11;
+        vec2 headCenter = vec2(-0.06, 0.04);
+        float cranium = length(p - headCenter) - 0.09;
+        float jaw = length(vec2((p.x - headCenter.x) * 1.6, p.y - headCenter.y + 0.06)) - 0.06;
+        float skull = min(cranium, jaw);
 
-        float trailX = p.x + sin(p.y * 12.0 + uTime * 3.0) * 0.04;
-        float trail = length(vec2(trailX, p.y + 0.15) * vec2(3.5, 1.0)) - 0.28;
-        float smokeTrail = fbm(p * 6.0 + vec2(0.0, uTime * 0.8));
-        trail += smokeTrail * 0.15;
+        // Клубящийся шлейф черного дыма
+        float trailX = p.x + sin(p.y * 10.0 + uTime * 2.5) * 0.04;
+        float trail = length(vec2((trailX - 0.16) * 1.5, p.y + 0.02) * vec2(1.2, 2.0)) - 0.22;
+        float smokeTrail = fbm(p * 5.0 + vec2(uTime * 0.6, 0.0));
+        trail += smokeTrail * 0.14;
 
-        shape = min(head, trail);
-        baseColor = vec3(0.005, 0.005, 0.01);
+        shape = min(skull, trail);
+        baseColor = vec3(0.01, 0.015, 0.02);
     }
     // ========================================================
-    // АРХЕТИП 4: БЕЛЫЙ КЛАДБИЩЕНСКИЙ СТРАЖ (CEMETERY WATCHER)
+    // АРХЕТИП 4: БЕЛЫЙ КЛАДБИЩЕНСКИЙ СТРАЖ (ЧЕЛОВЕЧЕСКИЙ СИЛУЭТ)
     // ========================================================
     else if (uArchetype >= 3.5 && uArchetype < 4.5) {
-        float head = length(p - vec2(0.0, 0.24)) - 0.07;
-        float body = length(p * vec2(1.8, 0.9) - vec2(0.0, 0.0)) - 0.22;
-        shape = min(head, body);
+        float head = length(p - vec2(0.0, 0.26)) - 0.055;
+        float torso = length(vec2(p.x * 2.6, p.y - 0.08)) - 0.14;
+        float legs = length(vec2(p.x * 3.5, p.y + 0.20)) - 0.18;
+        shape = min(head, min(torso, legs));
 
-        baseColor = vec3(0.88, 0.92, 0.98);
-        alphaMultiplier = 0.55;
+        baseColor = vec3(0.88, 0.94, 0.98);
+        alphaMultiplier = 0.58;
     }
     // ========================================================
     // АРХЕТИП 5: ИНВЕРТИРОВАННЫЙ ОКОННЫЙ ВОРОН (INVERTED RAVEN)

@@ -124,8 +124,8 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
       emfLevel: 14.2,
       dangerLevel: 4,
       icon: Icons.person_outline,
-      glowColor: Color(0xFFFFB703),
-      archetypeId: 0.0,
+      glowColor: Color(0xFF00E5FF),
+      archetypeId: 7.0,
     ),
     AnomalyCardModel(
       id: 'inverted_raven',
@@ -657,11 +657,21 @@ class _BestiaryScreenState extends State<BestiaryScreen> {
 
 /// Custom Atmospheric Ghost Art Painter
 /// Generates atmospheric spectral illustrations for each specific entity archetype
+/// Custom Atmospheric Ghost Art Painter & High-Res Image Renderer
+/// Accurately visualizes entities matching the authentic cinematic concept artwork
 class PhantomArtWidget extends StatelessWidget {
   final String anomalyId;
   final Color glowColor;
   final bool isCaptured;
   final double size;
+
+  static const Map<String, String> _entityImageMap = {
+    'haunt_drone': 'assets/images/entities/haunt_drone.jpg',
+    'paul_first': 'assets/images/entities/paul_first.jpg',
+    'inverted_raven': 'assets/images/entities/inverted_raven.jpg',
+    'white_cemetery_watcher': 'assets/images/entities/white_cemetery_watcher.jpg',
+    'flying_head_phantom': 'assets/images/entities/flying_head_phantom.jpg',
+  };
 
   const PhantomArtWidget({
     super.key,
@@ -673,6 +683,8 @@ class PhantomArtWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final assetPath = _entityImageMap[anomalyId];
+
     return Container(
       width: size,
       height: size,
@@ -680,7 +692,7 @@ class PhantomArtWidget extends StatelessWidget {
         color: Colors.black,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isCaptured ? glowColor.withValues(alpha: 0.6) : Colors.white12,
+          color: isCaptured ? glowColor.withValues(alpha: 0.65) : Colors.white12,
           width: 1.5,
         ),
         boxShadow: [
@@ -696,21 +708,79 @@ class PhantomArtWidget extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            CustomPaint(
-              size: Size(size, size),
-              painter: _PhantomArtPainter(
-                anomalyId: anomalyId,
-                glowColor: glowColor,
-                isCaptured: isCaptured,
-              ),
-            ),
-            if (!isCaptured)
-              Container(
-                color: Colors.black.withValues(alpha: 0.65),
-                child: const Center(
-                  child: Icon(Icons.lock, color: Colors.white30, size: 28),
+            // 1. High-Resolution Concept Art (if available and captured)
+            if (assetPath != null && isCaptured)
+              Image.asset(
+                assetPath,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => CustomPaint(
+                  size: Size(size, size),
+                  painter: _PhantomArtPainter(
+                    anomalyId: anomalyId,
+                    glowColor: glowColor,
+                    isCaptured: isCaptured,
+                  ),
+                ),
+              )
+            else
+              // 2. High-Fidelity Custom Vector Painter (for uncaptured or procedurals)
+              CustomPaint(
+                size: Size(size, size),
+                painter: _PhantomArtPainter(
+                  anomalyId: anomalyId,
+                  glowColor: glowColor,
+                  isCaptured: isCaptured,
                 ),
               ),
+
+            // 3. Mysterious Dark Shroud & Lock (when undiscovered)
+            if (!isCaptured) ...[
+              Container(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    colors: [
+                      Colors.black.withValues(alpha: 0.70),
+                      Colors.black.withValues(alpha: 0.92),
+                    ],
+                  ),
+                ),
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock, color: Colors.white38, size: 26),
+                      SizedBox(height: 3),
+                      Text(
+                        'НЕИЗВЕСТНО',
+                        style: TextStyle(
+                          color: Colors.white30,
+                          fontSize: 7,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+
+            // 4. Ethereal Vignette Overlay
+            IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    radius: 0.85,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: isCaptured ? 0.35 : 0.6),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -738,7 +808,7 @@ class _PhantomArtPainter extends CustomPainter {
     final bgPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          (isCaptured ? glowColor : Colors.white12).withValues(alpha: 0.22),
+          (isCaptured ? glowColor : Colors.white12).withValues(alpha: 0.20),
           const Color(0xFF070B09),
           Colors.black,
         ],
@@ -746,116 +816,416 @@ class _PhantomArtPainter extends CustomPainter {
       ).createShader(Rect.fromLTWH(0, 0, w, h));
     canvas.drawRect(Rect.fromLTWH(0, 0, w, h), bgPaint);
 
-    final ghostColor = isCaptured ? const Color(0xFF161C19) : const Color(0xFF1E2622);
-    final silhouettePaint = Paint()
-      ..color = ghostColor
+    final ghostDarkPaint = Paint()
+      ..color = const Color(0xFF101412)
       ..style = PaintingStyle.fill;
 
-    final glowEyePaint = Paint()
-      ..color = isCaptured ? glowColor : Colors.white24
-      ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 3.0);
+    // ========================================================
+    // АРХЕТИП 6: ТЕМНЫЙ ЛЕТУН (HAUNT DRONE)
+    // Крылатый рогатый демон, широко раскинувший перепончатые крылья,
+    // с пылающими янтарно-желтыми глазами на голове и черным дымным шлейфом
+    // ========================================================
+    if (anomalyId == 'haunt_drone') {
+      // 1. Волюметрический черный дым внизу
+      final smokePaint = Paint()
+        ..color = const Color(0xFF141A16).withValues(alpha: 0.85)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5.0);
+      final smokePath = Path();
+      smokePath.moveTo(w * 0.35, h * 0.55);
+      smokePath.quadraticBezierTo(w * 0.20, h * 0.80, w * 0.30, h * 0.95);
+      smokePath.quadraticBezierTo(w * 0.50, h * 0.82, w * 0.70, h * 0.95);
+      smokePath.quadraticBezierTo(w * 0.80, h * 0.80, w * 0.65, h * 0.55);
+      smokePath.close();
+      canvas.drawPath(smokePath, smokePaint);
 
-    // 2. Archetype-specific atmospheric painting:
-    switch (anomalyId) {
-      case 'haunt_drone':
-        // Winged demon gliding from dark (as in user's video screenshot)
-        final path = Path();
-        path.moveTo(w * 0.5, h * 0.18); // Head top
-        path.quadraticBezierTo(w * 0.58, h * 0.28, w * 0.88, h * 0.32); // Right wing tip
-        path.quadraticBezierTo(w * 0.72, h * 0.52, w * 0.58, h * 0.68);
-        path.quadraticBezierTo(w * 0.52, h * 0.90, w * 0.5, h * 0.85); // Tail
-        path.quadraticBezierTo(w * 0.48, h * 0.90, w * 0.42, h * 0.68);
-        path.quadraticBezierTo(w * 0.28, h * 0.52, w * 0.12, h * 0.32); // Left wing tip
-        path.quadraticBezierTo(w * 0.42, h * 0.28, w * 0.5, h * 0.18);
-        canvas.drawPath(path, silhouettePaint);
+      // 2. Массивные арочные перепончатые крылья
+      final wingPath = Path();
+      // Левое крыло
+      wingPath.moveTo(w * 0.50, h * 0.38); // Центр груди
+      wingPath.quadraticBezierTo(w * 0.35, h * 0.22, w * 0.08, h * 0.16); // Верхний изгиб к когтю
+      wingPath.lineTo(w * 0.06, h * 0.20);
+      wingPath.quadraticBezierTo(w * 0.18, h * 0.36, w * 0.16, h * 0.46); // Первая перепонка
+      wingPath.quadraticBezierTo(w * 0.28, h * 0.44, w * 0.28, h * 0.56); // Вторая перепонка
+      wingPath.quadraticBezierTo(w * 0.40, h * 0.52, w * 0.44, h * 0.62); // Третья перепонка
+      // Правое крыло
+      wingPath.moveTo(w * 0.50, h * 0.38);
+      wingPath.quadraticBezierTo(w * 0.65, h * 0.22, w * 0.92, h * 0.16); // Верхний изгиб к когтю
+      wingPath.lineTo(w * 0.94, h * 0.20);
+      wingPath.quadraticBezierTo(w * 0.82, h * 0.36, w * 0.84, h * 0.46); // Первая перепонка
+      wingPath.quadraticBezierTo(w * 0.72, h * 0.44, w * 0.72, h * 0.56); // Вторая перепонка
+      wingPath.quadraticBezierTo(w * 0.60, h * 0.52, w * 0.56, h * 0.62); // Третья перепонка
+      wingPath.close();
+      canvas.drawPath(wingPath, ghostDarkPaint);
 
-        // Glowing demonic yellow-white eyes
-        canvas.drawCircle(Offset(w * 0.45, h * 0.28), 2.2, glowEyePaint);
-        canvas.drawCircle(Offset(w * 0.55, h * 0.28), 2.2, glowEyePaint);
-        break;
+      // Костяные ребра крыльев (тонкие контурные линии)
+      final ribPaint = Paint()
+        ..color = Colors.white10
+        ..strokeWidth = 1.0
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(Offset(w * 0.40, h * 0.35), Offset(w * 0.08, h * 0.16), ribPaint);
+      canvas.drawLine(Offset(w * 0.40, h * 0.35), Offset(w * 0.16, h * 0.46), ribPaint);
+      canvas.drawLine(Offset(w * 0.60, h * 0.35), Offset(w * 0.92, h * 0.16), ribPaint);
+      canvas.drawLine(Offset(w * 0.60, h * 0.35), Offset(w * 0.84, h * 0.46), ribPaint);
 
-      case 'paul_first':
-        // Imperial 18th century silhouette with tricorn and candle
-        final path = Path();
-        // Tricorn hat
-        path.moveTo(w * 0.5, h * 0.14);
-        path.lineTo(w * 0.68, h * 0.22);
-        path.lineTo(w * 0.32, h * 0.22);
-        path.close();
-        // Head and imperial cloak
-        path.addOval(Rect.fromCenter(center: Offset(w * 0.5, h * 0.28), width: w * 0.22, height: h * 0.22));
-        path.moveTo(w * 0.35, h * 0.38);
-        path.lineTo(w * 0.65, h * 0.38);
-        path.lineTo(w * 0.78, h * 0.88);
-        path.lineTo(w * 0.22, h * 0.88);
-        path.close();
-        canvas.drawPath(path, silhouettePaint);
+      // 3. Демонический торс и руки
+      final bodyPath = Path();
+      bodyPath.moveTo(w * 0.40, h * 0.32);
+      bodyPath.lineTo(w * 0.60, h * 0.32);
+      bodyPath.lineTo(w * 0.56, h * 0.65);
+      bodyPath.lineTo(w * 0.44, h * 0.65);
+      bodyPath.close();
+      canvas.drawPath(bodyPath, ghostDarkPaint);
 
-        // Candle flame
-        final candlePaint = Paint()
-          ..color = Colors.amberAccent
-          ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 4.0);
-        canvas.drawCircle(Offset(w * 0.72, h * 0.50), 3.5, candlePaint);
-        break;
+      // 4. Демоническая голова с рогами
+      final headPath = Path();
+      // Левый изогнутый рог
+      headPath.moveTo(w * 0.46, h * 0.24);
+      headPath.quadraticBezierTo(w * 0.38, h * 0.18, w * 0.38, h * 0.12);
+      headPath.quadraticBezierTo(w * 0.42, h * 0.15, w * 0.48, h * 0.22);
+      // Правый изогнутый рог
+      headPath.moveTo(w * 0.54, h * 0.24);
+      headPath.quadraticBezierTo(w * 0.62, h * 0.18, w * 0.62, h * 0.12);
+      headPath.quadraticBezierTo(w * 0.58, h * 0.15, w * 0.52, h * 0.22);
+      // Череп
+      headPath.addOval(Rect.fromCenter(center: Offset(w * 0.50, h * 0.26), width: w * 0.16, height: h * 0.14));
+      canvas.drawPath(headPath, ghostDarkPaint);
 
-      case 'inverted_raven':
-        // Inverted corvid perched upside down
-        final path = Path();
-        path.moveTo(w * 0.5, h * 0.78); // Perched feet
-        path.lineTo(w * 0.66, h * 0.55); // Wing
-        path.lineTo(w * 0.58, h * 0.25); // Head pointing down
-        path.lineTo(w * 0.50, h * 0.18); // Beak
-        path.lineTo(w * 0.42, h * 0.25);
-        path.lineTo(w * 0.34, h * 0.55);
-        path.close();
-        canvas.drawPath(path, silhouettePaint);
+      // 5. Пылающие демонические глаза (на высоте головы!)
+      final eyeGlowPaint = Paint()
+        ..color = const Color(0xFFFFB703).withValues(alpha: 0.90)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 4.0);
+      final eyeCorePaint = Paint()..color = const Color(0xFFFFFBE6);
 
-        // Amber raven eye
-        canvas.drawCircle(Offset(w * 0.48, h * 0.26), 2.0, glowEyePaint);
-        break;
+      canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.46, h * 0.26), width: 3.5, height: 2.2), eyeGlowPaint);
+      canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.54, h * 0.26), width: 3.5, height: 2.2), eyeGlowPaint);
+      canvas.drawCircle(Offset(w * 0.46, h * 0.26), 1.2, eyeCorePaint);
+      canvas.drawCircle(Offset(w * 0.54, h * 0.26), 1.2, eyeCorePaint);
+    }
 
-      case 'white_cemetery_watcher':
-        // Luminous white ethereal spirit
-        final whiteSpiritPaint = Paint()
-          ..color = (isCaptured ? Colors.white : Colors.white30).withValues(alpha: 0.85)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 6.0);
-        canvas.drawOval(
-          Rect.fromCenter(center: Offset(w * 0.5, h * 0.42), width: w * 0.32, height: h * 0.55),
-          whiteSpiritPaint,
-        );
-        // Head halo
-        canvas.drawCircle(Offset(w * 0.5, h * 0.22), w * 0.14, whiteSpiritPaint);
-        break;
+    // ========================================================
+    // АРХЕТИП 7: ПРИЗРАК ПАВЛА I (GHOST OF PAUL I)
+    // Голографический бирюзово-синий контур в треуголке и мундире
+    // с эполетами и орденом, со светящейся белой свечой в руке
+    // ========================================================
+    else if (anomalyId == 'paul_first') {
+      const cyanColor = Color(0xFF00E5FF);
+      final cyanGlowPaint = Paint()
+        ..color = cyanColor.withValues(alpha: 0.75)
+        ..strokeWidth = 1.6
+        ..style = PaintingStyle.stroke
+        ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 2.0);
 
-      case 'flying_head_phantom':
-        // Floating skull with smoke trail
-        canvas.drawCircle(Offset(w * 0.5, h * 0.32), w * 0.18, silhouettePaint);
-        final trail = Path();
-        trail.moveTo(w * 0.36, h * 0.40);
-        trail.quadraticBezierTo(w * 0.65, h * 0.58, w * 0.45, h * 0.85);
-        trail.quadraticBezierTo(w * 0.35, h * 0.68, w * 0.55, h * 0.45);
-        canvas.drawPath(trail, silhouettePaint);
+      final cyanBodyPaint = Paint()
+        ..color = cyanColor.withValues(alpha: 0.14)
+        ..style = PaintingStyle.fill;
 
-        // Hollow glowing eye sockets
-        canvas.drawCircle(Offset(w * 0.44, h * 0.30), 2.5, glowEyePaint);
-        canvas.drawCircle(Offset(w * 0.56, h * 0.30), 2.5, glowEyePaint);
-        break;
+      // 1. Голографический ореол / прицел захвата AR
+      final reticlePaint = Paint()
+        ..color = cyanColor.withValues(alpha: 0.35)
+        ..strokeWidth = 1.0
+        ..style = PaintingStyle.stroke;
+      canvas.drawCircle(Offset(w * 0.50, h * 0.30), w * 0.28, reticlePaint);
 
-      default:
-        // Slender shadowy humanoid in fog
-        final path = Path();
-        path.addOval(Rect.fromCenter(center: Offset(w * 0.5, h * 0.24), width: w * 0.22, height: h * 0.24));
-        path.moveTo(w * 0.32, h * 0.36);
-        path.lineTo(w * 0.68, h * 0.36);
-        path.lineTo(w * 0.74, h * 0.88);
-        path.lineTo(w * 0.26, h * 0.88);
-        path.close();
-        canvas.drawPath(path, silhouettePaint);
+      // 2. Знаменитая Треуголка Павла I (Tricorn Hat with cockade)
+      final hatPath = Path();
+      hatPath.moveTo(w * 0.50, h * 0.12); // Верхний угол треуголки
+      hatPath.lineTo(w * 0.70, h * 0.22); // Правый угол
+      hatPath.lineTo(w * 0.30, h * 0.22); // Левый угол
+      hatPath.close();
+      canvas.drawPath(hatPath, cyanBodyPaint);
+      canvas.drawPath(hatPath, cyanGlowPaint);
 
-        // Piercing eyes
-        canvas.drawCircle(Offset(w * 0.45, h * 0.24), 2.2, glowEyePaint);
-        canvas.drawCircle(Offset(w * 0.55, h * 0.24), 2.2, glowEyePaint);
-        break;
+      // Кокарда на треуголке
+      canvas.drawCircle(Offset(w * 0.50, h * 0.19), 2.2, Paint()..color = Colors.white);
+
+      // 3. Лицо и напудренный парик с буклями
+      final headPath = Path();
+      headPath.addOval(Rect.fromCenter(center: Offset(w * 0.50, h * 0.27), width: w * 0.18, height: h * 0.14));
+      // Букли парика по бокам
+      headPath.addOval(Rect.fromCenter(center: Offset(w * 0.38, h * 0.28), width: w * 0.08, height: h * 0.08));
+      headPath.addOval(Rect.fromCenter(center: Offset(w * 0.62, h * 0.28), width: w * 0.08, height: h * 0.08));
+      canvas.drawPath(headPath, cyanBodyPaint);
+      canvas.drawPath(headPath, cyanGlowPaint);
+
+      // 4. Мундир с эполетами и андреевской лентой
+      final uniformPath = Path();
+      uniformPath.moveTo(w * 0.40, h * 0.34);
+      uniformPath.lineTo(w * 0.60, h * 0.34);
+      // Правое плечо с эполетом
+      uniformPath.lineTo(w * 0.72, h * 0.40);
+      uniformPath.lineTo(w * 0.68, h * 0.78);
+      uniformPath.lineTo(w * 0.32, h * 0.78);
+      // Левое плечо с эполетом
+      uniformPath.lineTo(w * 0.28, h * 0.40);
+      uniformPath.close();
+      canvas.drawPath(uniformPath, cyanBodyPaint);
+      canvas.drawPath(uniformPath, cyanGlowPaint);
+
+      // Эполеты с бахромой
+      canvas.drawRect(Rect.fromLTWH(w * 0.25, h * 0.38, w * 0.10, h * 0.05), cyanGlowPaint);
+      canvas.drawRect(Rect.fromLTWH(w * 0.65, h * 0.38, w * 0.10, h * 0.05), cyanGlowPaint);
+
+      // Андреевская лента через плечо
+      final sashPaint = Paint()
+        ..color = cyanColor.withValues(alpha: 0.80)
+        ..strokeWidth = 2.2;
+      canvas.drawLine(Offset(w * 0.35, h * 0.36), Offset(w * 0.64, h * 0.68), sashPaint);
+
+      // Орденская звезда на груди
+      canvas.drawCircle(Offset(w * 0.43, h * 0.48), 2.5, Paint()..color = Colors.white);
+
+      // 5. Рука со светящейся свечой (Подсвечник)
+      final candleHand = Path();
+      candleHand.moveTo(w * 0.34, h * 0.52);
+      candleHand.lineTo(w * 0.22, h * 0.56); // Рука вперед
+      canvas.drawPath(candleHand, cyanGlowPaint);
+
+      // Подсвечник
+      canvas.drawLine(Offset(w * 0.18, h * 0.58), Offset(w * 0.24, h * 0.58), cyanGlowPaint);
+      canvas.drawLine(Offset(w * 0.21, h * 0.58), Offset(w * 0.21, h * 0.50), cyanGlowPaint);
+
+      // Свеча и горящее пламя
+      final flameGlow = Paint()
+        ..color = const Color(0xFFFFD166)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 5.0);
+      canvas.drawCircle(Offset(w * 0.21, h * 0.46), 4.5, flameGlow);
+      canvas.drawCircle(Offset(w * 0.21, h * 0.46), 2.0, Paint()..color = Colors.white);
+    }
+
+    // ========================================================
+    // АРХЕТИП 5: ИНВЕРТИРОВАННЫЙ ВОРОН (INVERTED RAVEN)
+    // Черная птица, висящая вниз головой на каменной раме,
+    // с детальными перьями крыльев и пылающим огненно-янтарным оком
+    // ========================================================
+    else if (anomalyId == 'inverted_raven') {
+      // 1. Каменный готический выступ/перекладина сверху
+      final stonePaint = Paint()
+        ..color = const Color(0xFF1E2420)
+        ..strokeWidth = 3.0;
+      canvas.drawLine(Offset(w * 0.25, h * 0.12), Offset(w * 0.75, h * 0.12), stonePaint);
+
+      // 2. Когти, вцепившиеся в выступ
+      final clawPaint = Paint()
+        ..color = Colors.white24
+        ..strokeWidth = 1.5;
+      canvas.drawLine(Offset(w * 0.46, h * 0.12), Offset(w * 0.46, h * 0.18), clawPaint);
+      canvas.drawLine(Offset(w * 0.54, h * 0.12), Offset(w * 0.54, h * 0.18), clawPaint);
+
+      // 3. Хвостовые перья, торчащие ВВЕРХ
+      final tailPath = Path();
+      tailPath.moveTo(w * 0.45, h * 0.32);
+      tailPath.lineTo(w * 0.48, h * 0.16);
+      tailPath.lineTo(w * 0.52, h * 0.16);
+      tailPath.lineTo(w * 0.55, h * 0.32);
+      tailPath.close();
+      canvas.drawPath(tailPath, ghostDarkPaint);
+
+      // 4. Массивное тело и сложенные блестящие крылья вниз головой
+      final ravenBody = Path();
+      ravenBody.moveTo(w * 0.42, h * 0.26);
+      ravenBody.quadraticBezierTo(w * 0.26, h * 0.45, w * 0.34, h * 0.72); // Левое крыло
+      ravenBody.lineTo(w * 0.46, h * 0.82); // К голове внизу
+      ravenBody.lineTo(w * 0.54, h * 0.82);
+      ravenBody.lineTo(w * 0.66, h * 0.72); // Правое крыло
+      ravenBody.quadraticBezierTo(w * 0.74, h * 0.45, w * 0.58, h * 0.26);
+      ravenBody.close();
+      canvas.drawPath(ravenBody, ghostDarkPaint);
+
+      // Штрихи перьев крыльев
+      final featherLinePaint = Paint()
+        ..color = const Color(0xFF26322A)
+        ..strokeWidth = 1.0;
+      canvas.drawLine(Offset(w * 0.38, h * 0.40), Offset(w * 0.36, h * 0.62), featherLinePaint);
+      canvas.drawLine(Offset(w * 0.44, h * 0.44), Offset(w * 0.42, h * 0.68), featherLinePaint);
+      canvas.drawLine(Offset(w * 0.62, h * 0.40), Offset(w * 0.64, h * 0.62), featherLinePaint);
+      canvas.drawLine(Offset(w * 0.56, h * 0.44), Offset(w * 0.58, h * 0.68), featherLinePaint);
+
+      // 5. Опущенная вниз голова и острый клюв
+      final headPath = Path();
+      headPath.addOval(Rect.fromCenter(center: Offset(w * 0.50, h * 0.80), width: w * 0.18, height: h * 0.12));
+      // Острый изогнутый клюв вниз
+      headPath.moveTo(w * 0.46, h * 0.84);
+      headPath.quadraticBezierTo(w * 0.49, h * 0.94, w * 0.48, h * 0.96);
+      headPath.quadraticBezierTo(w * 0.53, h * 0.92, w * 0.54, h * 0.84);
+      headPath.close();
+      canvas.drawPath(headPath, ghostDarkPaint);
+
+      // 6. Зловещее светящееся огненно-янтарное око с красной радужкой
+      final eyeAuraPaint = Paint()
+        ..color = const Color(0xFFFF5400).withValues(alpha: 0.85)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 4.0);
+      final eyeAmberPaint = Paint()..color = const Color(0xFFFFB703);
+      final eyePupilPaint = Paint()..color = Colors.black;
+
+      canvas.drawCircle(Offset(w * 0.53, h * 0.80), 3.5, eyeAuraPaint);
+      canvas.drawCircle(Offset(w * 0.53, h * 0.80), 2.0, eyeAmberPaint);
+      canvas.drawCircle(Offset(w * 0.53, h * 0.80), 0.9, eyePupilPaint);
+    }
+
+    // ========================================================
+    // АРХЕТИП 4: БЕЛЫЙ КЛАДБИЩЕНСКИЙ СТРАЖ (WHITE CEMETERY WATCHER)
+    // Эфирный молочно-белый силуэт человека среди могильных надгробий,
+    // полупрозрачная фигура в мягком сияющем ореоле (не засвечивает экран!)
+    // ========================================================
+    else if (anomalyId == 'white_cemetery_watcher') {
+      // 1. Силуэты старых могильных плит и крестов на фоне
+      final tombstonePaint = Paint()
+        ..color = const Color(0xFF0D1410)
+        ..style = PaintingStyle.fill;
+      // Левое надгробие
+      final tomb1 = Path();
+      tomb1.moveTo(w * 0.08, h * 0.90);
+      tomb1.lineTo(w * 0.08, h * 0.68);
+      tomb1.quadraticBezierTo(w * 0.16, h * 0.62, w * 0.24, h * 0.68);
+      tomb1.lineTo(w * 0.24, h * 0.90);
+      tomb1.close();
+      canvas.drawPath(tomb1, tombstonePaint);
+
+      // Правое надгробие
+      final tomb2 = Path();
+      tomb2.moveTo(w * 0.76, h * 0.90);
+      tomb2.lineTo(w * 0.76, h * 0.72);
+      tomb2.quadraticBezierTo(w * 0.84, h * 0.66, w * 0.92, h * 0.72);
+      tomb2.lineTo(w * 0.92, h * 0.90);
+      tomb2.close();
+      canvas.drawPath(tomb2, tombstonePaint);
+
+      // 2. Сияющий ореол вокруг призрака (мягкий градиент)
+      final haloPaint = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            Colors.white.withValues(alpha: isCaptured ? 0.35 : 0.15),
+            const Color(0xFFC8E6C9).withValues(alpha: 0.10),
+            Colors.transparent,
+          ],
+        ).createShader(Rect.fromCircle(center: Offset(w * 0.50, h * 0.45), radius: w * 0.40));
+      canvas.drawCircle(Offset(w * 0.50, h * 0.45), w * 0.40, haloPaint);
+
+      // 3. Грациозный полупрозрачный человеческий силуэт
+      final spiritPaint = Paint()
+        ..color = (isCaptured ? const Color(0xFFE8F4F8) : const Color(0xFFA0B8B0)).withValues(alpha: 0.78)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 2.0);
+
+      final personPath = Path();
+      // Голова
+      personPath.addOval(Rect.fromCenter(center: Offset(w * 0.50, h * 0.26), width: w * 0.14, height: h * 0.13));
+      // Шея и плечи
+      personPath.moveTo(w * 0.46, h * 0.32);
+      personPath.lineTo(w * 0.36, h * 0.38); // Левое плечо
+      personPath.quadraticBezierTo(w * 0.34, h * 0.52, w * 0.40, h * 0.62); // Торс
+      personPath.lineTo(w * 0.42, h * 0.88); // Левая нога
+      personPath.lineTo(w * 0.48, h * 0.88);
+      personPath.lineTo(w * 0.50, h * 0.68); // Разделение ног
+      personPath.lineTo(w * 0.52, h * 0.88);
+      personPath.lineTo(w * 0.58, h * 0.88); // Правая нога
+      personPath.lineTo(w * 0.60, h * 0.62);
+      personPath.quadraticBezierTo(w * 0.66, h * 0.52, w * 0.64, h * 0.38); // Правое плечо
+      personPath.lineTo(w * 0.54, h * 0.32);
+      personPath.close();
+      canvas.drawPath(personPath, spiritPaint);
+
+      // Внутреннее светящееся ядро
+      final innerCorePaint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.90)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 1.5);
+      canvas.drawCircle(Offset(w * 0.50, h * 0.26), w * 0.04, innerCorePaint);
+      canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.50, h * 0.44), width: w * 0.08, height: h * 0.16), innerCorePaint);
+    }
+
+    // ========================================================
+    // АРХЕТИП 3: ЛЕТАЮЩИЙ МОРОК (FLYING MOROK / FLOATING SKULL)
+    // Анатомический человеческий череп с глазницами и зубами,
+    // за которым стелется длинный шлейф клубящегося черного дыма
+    // ========================================================
+    else if (anomalyId == 'flying_head_phantom') {
+      // 1. Длинный вихревой шлейф черного дыма назад и вправо
+      final smokePath = Path();
+      smokePath.moveTo(w * 0.42, h * 0.36);
+      smokePath.quadraticBezierTo(w * 0.62, h * 0.20, w * 0.88, h * 0.18);
+      smokePath.quadraticBezierTo(w * 0.98, h * 0.42, w * 0.78, h * 0.60);
+      smokePath.quadraticBezierTo(w * 0.65, h * 0.72, w * 0.42, h * 0.58);
+      smokePath.close();
+
+      final smokePaint = Paint()
+        ..color = const Color(0xFF141A16).withValues(alpha: 0.88)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.0);
+      canvas.drawPath(smokePath, smokePaint);
+
+      // Дополнительные витки дыма
+      final tendrilPaint = Paint()
+        ..color = Colors.black87
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
+      canvas.drawCircle(Offset(w * 0.62, h * 0.35), w * 0.12, tendrilPaint);
+      canvas.drawCircle(Offset(w * 0.78, h * 0.38), w * 0.10, tendrilPaint);
+      canvas.drawCircle(Offset(w * 0.88, h * 0.26), w * 0.08, tendrilPaint);
+
+      // 2. Костяной свод черепа
+      final skullBonePaint = Paint()
+        ..color = (isCaptured ? const Color(0xFFD6DDD8) : const Color(0xFF6C7570))
+        ..style = PaintingStyle.fill;
+
+      final skullPath = Path();
+      // Купол черепа
+      skullPath.moveTo(w * 0.32, h * 0.30);
+      skullPath.quadraticBezierTo(w * 0.42, h * 0.22, w * 0.52, h * 0.30);
+      // Скуловая кость
+      skullPath.quadraticBezierTo(w * 0.56, h * 0.42, w * 0.48, h * 0.50);
+      // Верхняя челюсть и зубы
+      skullPath.lineTo(w * 0.48, h * 0.58);
+      skullPath.lineTo(w * 0.36, h * 0.58);
+      // Нижний контур скулы к затылку
+      skullPath.lineTo(w * 0.36, h * 0.50);
+      skullPath.quadraticBezierTo(w * 0.26, h * 0.44, w * 0.32, h * 0.30);
+      skullPath.close();
+      canvas.drawPath(skullPath, skullBonePaint);
+
+      // 3. Глазницы (темные провалы со спектральным отблеском)
+      final socketPaint = Paint()..color = const Color(0xFF0A0F0D);
+      canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.38, h * 0.40), width: 4.5, height: 6.0), socketPaint);
+      canvas.drawOval(Rect.fromCenter(center: Offset(w * 0.47, h * 0.40), width: 4.5, height: 6.0), socketPaint);
+
+      // Носовая полость (грушевидная апертура)
+      final nosePath = Path();
+      nosePath.moveTo(w * 0.42, h * 0.45);
+      nosePath.lineTo(w * 0.44, h * 0.49);
+      nosePath.lineTo(w * 0.40, h * 0.49);
+      nosePath.close();
+      canvas.drawPath(nosePath, socketPaint);
+
+      // Зубные штрихи
+      final toothPaint = Paint()
+        ..color = const Color(0xFF0A0F0D)
+        ..strokeWidth = 0.8;
+      canvas.drawLine(Offset(w * 0.39, h * 0.53), Offset(w * 0.39, h * 0.58), toothPaint);
+      canvas.drawLine(Offset(w * 0.42, h * 0.53), Offset(w * 0.42, h * 0.58), toothPaint);
+      canvas.drawLine(Offset(w * 0.45, h * 0.53), Offset(w * 0.45, h * 0.58), toothPaint);
+
+      // Легкое свечение в глазницах
+      final eyeGlow = Paint()
+        ..color = const Color(0xFF52B788).withValues(alpha: 0.75)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 2.0);
+      canvas.drawCircle(Offset(w * 0.38, h * 0.40), 1.2, eyeGlow);
+      canvas.drawCircle(Offset(w * 0.47, h * 0.40), 1.2, eyeGlow);
+    }
+
+    // ========================================================
+    // ДРУГИЕ СУЩНОСТИ (Теневой человек, Барабашка и т.д.)
+    // ========================================================
+    else {
+      final path = Path();
+      path.addOval(Rect.fromCenter(center: Offset(w * 0.5, h * 0.24), width: w * 0.22, height: h * 0.24));
+      path.moveTo(w * 0.32, h * 0.36);
+      path.lineTo(w * 0.68, h * 0.36);
+      path.lineTo(w * 0.74, h * 0.88);
+      path.lineTo(w * 0.26, h * 0.88);
+      path.close();
+      canvas.drawPath(path, ghostDarkPaint);
+
+      final glowEyePaint = Paint()
+        ..color = isCaptured ? glowColor : Colors.white24
+        ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 3.0);
+      canvas.drawCircle(Offset(w * 0.45, h * 0.24), 2.2, glowEyePaint);
+      canvas.drawCircle(Offset(w * 0.55, h * 0.24), 2.2, glowEyePaint);
     }
   }
 

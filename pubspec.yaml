@@ -31,6 +31,7 @@ flutter:
 
   assets:
     - assets/audio/
+    - assets/images/entities/
 
   # Custom Hardware-Accelerated Fragment Shaders (Impeller/Skia)
   shaders:

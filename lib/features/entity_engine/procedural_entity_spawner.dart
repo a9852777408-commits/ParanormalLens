@@ -200,6 +200,50 @@ class ProceduralEntitySpawner extends ChangeNotifier {
     });
   }
 
+  /// Archetype 7: Призрак Павла I (Ghost of Emperor Paul I with Candle)
+  void triggerPaulFirst({Offset? initialPosition}) {
+    if (_currentEntity != null) return;
+
+    final rand = Random();
+    final side = rand.nextBool() ? 1.0 : -1.0;
+    final spawnPos = initialPosition ?? Offset(0.5 + side * 0.28, 0.36);
+
+    _currentEntity = ProceduralEntityInstance(
+      seed: 1754.0,
+      archetype: 7.0, // Ghost of Paul I
+      screenPosition: spawnPos,
+      entityName: 'Призрак Павла I (Михайловский замок)',
+      rarity: 'legendary',
+      distance: 3.0,
+      scale: 1.0,
+    );
+
+    debugPrint('[Entity] Ghost of Paul I manifested with candle at $spawnPos!');
+    notifyListeners();
+  }
+
+  /// Archetype 3: Летающий Морок (Floating Skull with Smoke Trail)
+  void triggerFlyingMorok({Offset? initialPosition}) {
+    if (_currentEntity != null) return;
+
+    final rand = Random();
+    final side = rand.nextBool() ? 1.0 : -1.0;
+    final spawnPos = initialPosition ?? Offset(0.5 + side * 0.30, 0.32);
+
+    _currentEntity = ProceduralEntityInstance(
+      seed: rand.nextDouble() * 88.0,
+      archetype: 3.0, // Flying Morok Skull
+      screenPosition: spawnPos,
+      entityName: 'Летающий Морок (Череп в дыму)',
+      rarity: 'uncommon',
+      distance: 3.2,
+      scale: 0.95,
+    );
+
+    debugPrint('[Entity] Flying Morok manifested with smoke at $spawnPos!');
+    notifyListeners();
+  }
+
   /// Archetype 4: White Cemetery Watcher
   void triggerCemeteryWhiteWatcher() {
     if (_currentEntity != null) return;
@@ -229,22 +273,26 @@ class ProceduralEntitySpawner extends ChangeNotifier {
     String name;
     String rarity;
 
-    if (roll < 0.28) {
+    if (roll < 0.25) {
       archetype = 6.0;
       name = 'Темный Летун (Из темноты)';
       rarity = 'legendary';
-    } else if (roll < 0.50) {
+    } else if (roll < 0.45) {
+      archetype = 7.0;
+      name = 'Призрак Павла I';
+      rarity = 'legendary';
+    } else if (roll < 0.65) {
       archetype = 3.0;
-      name = 'Летающий Морок (Голова со шлейфом)';
+      name = 'Летающий Морок (Череп со шлейфом)';
       rarity = 'uncommon';
-    } else if (roll < 0.75) {
-      archetype = 0.0;
-      name = 'Теневой Человек';
-      rarity = 'common';
+    } else if (roll < 0.85) {
+      archetype = 5.0;
+      name = 'Инвертированный Ворон';
+      rarity = 'rare';
     } else {
-      archetype = 1.0;
-      name = 'Барабашка';
-      rarity = 'common';
+      archetype = 4.0;
+      name = 'Белый Кладбищенский Страж';
+      rarity = 'mythic';
     }
 
     // Spawn spatially positioned in room (off-center: requiring player to look around)
@@ -317,10 +365,14 @@ class ProceduralEntitySpawner extends ChangeNotifier {
 
     if (archetype == 6.0) {
       triggerNightGlider(initialPosition: const Offset(0.35, 0.35));
+    } else if (archetype == 7.0) {
+      triggerPaulFirst(initialPosition: const Offset(0.50, 0.36));
     } else if (archetype == 4.0) {
       triggerCemeteryWhiteWatcher();
     } else if (archetype == 5.0) {
       triggerWindowRavenEncounter();
+    } else if (archetype == 3.0) {
+      triggerFlyingMorok();
     } else {
       _spawnContextualOrRandomEntity();
     }
