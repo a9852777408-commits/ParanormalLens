@@ -71,6 +71,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
   bool _isCrossInFrame = false;
   Offset _crossCenter = const Offset(0.5, 0.42);
   Timer? _crossBanishTimer;
+  DateTime _lastCrossChimeTime = DateTime.fromMillisecondsSinceEpoch(0);
 
   // Sacred Exorcism Visual Effect State
   bool _isExorcismActive = false;
@@ -361,6 +362,13 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
 
   /// 2. Cross Detected in Frame Handler
   void _onCrossDetectedInFrame(Offset center) {
+    final now = DateTime.now();
+    if (now.difference(_lastCrossChimeTime).inMilliseconds >= 2500) {
+      _lastCrossChimeTime = now;
+      AudioService().playHolyDawnBell();
+      HapticFeedback.mediumImpact();
+    }
+
     final spawner = ProceduralEntitySpawner();
     final entity = spawner.currentEntity;
 

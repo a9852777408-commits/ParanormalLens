@@ -96,14 +96,14 @@ class SacredRelicDetector {
       int bestY = -1;
 
       // Multi-scale step grid: sample candidate cross centers
-      final stepX = (width ~/ 40).clamp(8, 24);
-      final stepY = (height ~/ 40).clamp(8, 24);
+      final stepX = (width ~/ 36).clamp(10, 26);
+      final stepY = (height ~/ 36).clamp(10, 26);
 
-      // Check radii for cross junctions (small to large crosses)
-      final radii = [10, 20, 32];
+      // Multi-scale radii for cross junctions (handheld, paper, monitor, large crucifix)
+      final radii = [12, 22, 36, 60, 95];
 
-      for (int y = stepY * 4; y < height - stepY * 4; y += stepY) {
-        for (int x = stepX * 4; x < width - stepX * 4; x += stepX) {
+      for (int y = stepY * 3; y < height - stepY * 3; y += stepY) {
+        for (int x = stepX * 3; x < width - stepX * 3; x += stepX) {
           final centerVal = getLuminance(x, y);
 
           for (final r in radii) {
@@ -125,15 +125,15 @@ class SacredRelicDetector {
 
             // Contrast between cross arms and diagonal background
             final contrast = (crossMean - bgMean).abs();
-            if (contrast < 22.0) continue;
+            if (contrast < 15.0) continue; // Sensitive to real-world room lighting & screens
 
-            // Vertical stroke consistency (top and bottom must match center more than background)
+            // Vertical stroke consistency (top and bottom match center more than background)
             final vArmDiff = ((top - centerVal).abs() + (bot - centerVal).abs()) / 2.0;
-            // Horizontal stroke consistency (left and right must match center more than background)
+            // Horizontal stroke consistency (left and right match center more than background)
             final hArmDiff = ((left - centerVal).abs() + (right - centerVal).abs()) / 2.0;
 
-            // In a valid cross, arm variation must be significantly smaller than background contrast
-            if (vArmDiff > contrast * 0.85 || hArmDiff > contrast * 0.85) continue;
+            // In a valid cross, arm variation must be smaller than background contrast
+            if (vArmDiff > contrast * 0.90 || hArmDiff > contrast * 0.90) continue;
 
             final score = (contrast * 2.0 - (vArmDiff + hArmDiff)).toInt();
             if (score > bestScore) {
@@ -146,7 +146,7 @@ class SacredRelicDetector {
       }
 
       // If a strong cross junction is confirmed
-      if (bestScore > 36 && bestX > 0 && bestY > 0) {
+      if (bestScore > 24 && bestX > 0 && bestY > 0) {
         _consecutiveMissedFrames = 0;
 
         // Sensor orientation on Android portrait: 90° clockwise rotation

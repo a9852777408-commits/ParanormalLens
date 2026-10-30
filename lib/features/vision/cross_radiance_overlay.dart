@@ -70,7 +70,7 @@ class _CrossRadiancePainter extends CustomPainter {
 
     // 2. Volumetric Rotating Godrays (Божественные лучи от креста)
     const numRays = 16;
-    final rayAngle = (2 * pi) / numRays;
+    const rayAngle = (2 * pi) / numRays;
     final baseRotation = animationValue * 0.45; // Smooth slow holy rotation
 
     final rayPaint = Paint()
