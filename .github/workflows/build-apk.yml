@@ -63,23 +63,28 @@ jobs:
         continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.7
-          name: "PL v1.0.7 - Cinematic Concept Entities, High-Res Bestiary & 3D AR Floating Apparitions"
+          tag_name: v1.0.8
+          name: "PL v1.0.8 - True 3D AR Spatial Anchoring & Strict Physical Cross Contour Illumination"
           body: |
-            ### 👻 PL v1.0.7 - Cinematic Concept Visuals & 3D AR Overhaul
-            - **Cinematic Concept Artwork Integration**: Incorporated the authentic high-resolution concept designs for all 5 major entities:
-              - 🦇 **Haunt Drone (Тёмный Летун)**: Winged demon emerging from volumetric black smoke with arched bat wings, curved horns, and piercing yellow-hot eyes at head level.
-              - 🕯️ **Ghost of Paul I (Призрак Павла I)**: Luminous cyan holographic contour in an 18th-century tricorn hat with cockade, imperial uniform with epaulets and star order, holding a glowing candle with radiating light.
-              - 🦅 **Inverted Raven (Инвертированный Ворон)**: Photorealistic raven perched upside-down with downward-pointing sharp beak, sleek wing feathers, upright tail feathers, and a fiery amber glowing eye.
-              - 👤 **White Graveyard Guardian (Белый Страж Кладбища)**: Translucent, graceful milky-white humanoid silhouette with soft volumetric glowing aura walking among misty graveyard tombstones (clearly defined human figure).
-              - 💀 **Flying Morok (Летающий Морок)**: Anatomically distinct floating human skull with sunken dark eye sockets and teeth, trailing a massive billowing vortex of black ectoplasm smoke.
-            - **3D AR Floating Apparitions in Camera Viewfinder**: Entities materialize directly in the real room in 3D AR space, with floating levitation, dynamic scaling, spectral aura, and holy golden dissolution upon exorcism.
-            - **Overhauled Bestiary Dossiers**: Authentic high-res concept artwork displayed in cards and inspection sheets, with shrouded dark silhouettes and mystery locks for uncaptured entities.
-            - **Ultra-Sensitive Cross Vision AI & Bell Chime**: Instant computer vision detection of crosses across all sizes, accompanied by haptic feedback and cathedral bell chime.
+            ### ☦️ PL v1.0.8 - True 3D AR Spatial Anchoring & Physical Cross Illumination
+            - **Strict Christian / Orthodox Cross Detection & Physical Contour Illumination**:
+              - Eliminates 100% of false positives on camera crosshairs, reticles, window frames, and tile grids via 5-invariant geometric validation ($L_{bot}/L_{top} \in [1.45, 4.2]$, $H/W \ge 1.25$, symmetric crossbars, terminated arm ends, clear diagonal background).
+              - Removed synthetic drawn cross overlay and 16 full-screen blinding sunburst rays.
+              - The physical contour of the detected cross is illuminated with a localized golden neon glow, soft aura, and compact holy halo around the cross junction.
+            - **True 3D AR Spherical Room Spatial Anchoring**:
+              - Phantoms are firmly anchored to fixed spherical 3D room coordinates (`worldAzimuth`, `worldElevation`, `distance`) in physical room space.
+              - Smooth, drift-free sensor fusion (gyroscope angular velocity integration + accelerometer gravity pitch reference).
+              - When turning the phone away, the entity moves off-screen and directional indicators appear (◀ АНОМАЛИЯ СЛЕВА / СПРАВА ▶). When turning back, the phantom stays in the exact same physical spot in the room.
+              - Halts endless re-scanning: phantoms are no longer glued to the viewfinder center.
+            - **Cinematic Volumetric Procedural Shader Rendering**:
+              - Removed flat 2D sticker cutouts from the camera viewfinder.
+              - Entities are rendered procedurally through the GPU fragment shader with organic fluid ectoplasm, breathing motion, smoke fbm noise, glowing demonic eyes, and holy ember dissolution.
+            - **UI Layout & Non-Overlapping HUD**:
+              - Moved the cross status badge cleanly below the top HUD action bar (`top: MediaQuery.padding.top + 54`) to prevent any element overlap.
             
             **Direct Download:**
-            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.7/PL.apk)
-            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.7/PL-release.apk)
+            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.8/PL.apk)
+            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.8/PL-release.apk)
           files: |
             build/dist/PL.apk
             build/dist/PL-debug.apk

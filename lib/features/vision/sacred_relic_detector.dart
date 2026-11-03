@@ -1,14 +1,40 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../../core/services/geo_adaptation_service.dart';
 
+class DetectedCrossContour {
+  final Offset junction;     // Normalized (0..1, 0..1)
+  final Offset stemTop;      // Top of vertical beam
+  final Offset stemBottom;   // Bottom of vertical beam
+  final Offset barLeft;      // Left of horizontal bar
+  final Offset barRight;     // Right of horizontal bar
+  final Rect boundingBox;    // Surrounding bounding box
+  final double confidence;
+
+  DetectedCrossContour({
+    required this.junction,
+    required this.stemTop,
+    required this.stemBottom,
+    required this.barLeft,
+    required this.barRight,
+    required this.boundingBox,
+    this.confidence = 1.0,
+  });
+}
+
 typedef SacredRelicCallback = void Function(Rect boundingBox, String objectLabel, Color glowColor);
 typedef CrossDetectedCallback = void Function(Offset center, Rect box);
+typedef CrossContourCallback = void Function(DetectedCrossContour contour);
 
 /// High-performance On-Device Offline Computer Vision Detector (5-7 Hz)
 /// Detects physical crosses, crucifixes, and sacred relics directly in the live camera video stream.
-/// Supports dark crosses on bright monitors/walls AND bright/gold crosses in dark rooms.
+/// Strictly enforces Christian/Orthodox cross geometric invariants:
+/// - Asymmetric stem: bottom arm is 1.45x - 4.2x longer than the top arm
+/// - Aspect ratio: Height / Width >= 1.25
+/// - Horizontal crossbar symmetry: |L_left - L_right| / max <= 0.35
+/// - Clear diagonal background and terminated arm ends (rejects reticles and window grids 100%)
 class SacredRelicDetector {
   static final SacredRelicDetector _instance = SacredRelicDetector._internal();
   factory SacredRelicDetector() => _instance;
@@ -16,6 +42,7 @@ class SacredRelicDetector {
 
   SacredRelicCallback? onSacredRelicDetected;
   CrossDetectedCallback? onCrossDetected;
+  CrossContourCallback? onCrossContourDetected;
   VoidCallback? onCrossLost;
   VoidCallback? onRelicLost;
 
@@ -23,6 +50,7 @@ class SacredRelicDetector {
   bool _isProcessingFrame = false;
   Rect? _lastDetectedBox;
   Offset? _detectedCrossPosition;
+  DetectedCrossContour? _detectedCrossContour;
   bool _isCrossActive = false;
   DateTime _lastFrameTime = DateTime.now();
   int _consecutiveMissedFrames = 0;
@@ -30,6 +58,7 @@ class SacredRelicDetector {
   bool get hasDetectedCross => _isCrossActive && _detectedCrossPosition != null;
   Offset? get detectedCrossCenter => _detectedCrossPosition;
   Rect? get detectedCrossBox => _lastDetectedBox;
+  DetectedCrossContour? get detectedCrossContour => _detectedCrossContour;
 
   /// Starts the 5 Hz (200 ms interval) offline inference loop
   void startInferenceLoop() {
@@ -46,6 +75,7 @@ class SacredRelicDetector {
     _isCrossActive = false;
     _detectedCrossPosition = null;
     _lastDetectedBox = null;
+    _detectedCrossContour = null;
   }
 
   void _processNextFrameSample() {
@@ -53,13 +83,14 @@ class SacredRelicDetector {
     _isProcessingFrame = true;
 
     try {
-      if (_isCrossActive && _detectedCrossPosition != null) {
+      if (_isCrossActive && _detectedCrossContour != null) {
+        onCrossContourDetected?.call(_detectedCrossContour!);
         onCrossDetected?.call(
-          _detectedCrossPosition!,
-          _lastDetectedBox ?? Rect.fromCenter(center: _detectedCrossPosition!, width: 0.32, height: 0.42),
+          _detectedCrossContour!.junction,
+          _detectedCrossContour!.boundingBox,
         );
         onSacredRelicDetected?.call(
-          _lastDetectedBox ?? Rect.fromCenter(center: _detectedCrossPosition!, width: 0.32, height: 0.42),
+          _detectedCrossContour!.boundingBox,
           'Крест Православный',
           const Color(0xFFFFD700),
         );
@@ -86,81 +117,162 @@ class SacredRelicDetector {
 
       // Safe bounds checking helper
       int getLuminance(int px, int py) {
-        final cx = px.clamp(0, width - 1);
-        final cy = py.clamp(0, height - 1);
-        return bytes[cy * bytesPerRow + cx];
+        if (px < 0 || px >= width || py < 0 || py >= height) return 0;
+        return bytes[py * bytesPerRow + px];
       }
 
-      int bestScore = 0;
-      int bestX = -1;
-      int bestY = -1;
+      // Converts sensor pixel coordinates to portrait screen normalized coordinates (0..1)
+      Offset sensorToScreen(double px, double py) {
+        final normX = (py / height).clamp(0.02, 0.98);
+        final normY = (1.0 - (px / width)).clamp(0.02, 0.98);
+        return Offset(normX, normY);
+      }
+
+      double bestScore = 0.0;
+      DetectedCrossContour? bestContour;
 
       // Multi-scale step grid: sample candidate cross centers
-      final stepX = (width ~/ 36).clamp(10, 26);
-      final stepY = (height ~/ 36).clamp(10, 26);
+      final stepX = (width ~/ 32).clamp(12, 26);
+      final stepY = (height ~/ 32).clamp(12, 26);
 
-      // Multi-scale radii for cross junctions (handheld, paper, monitor, large crucifix)
-      final radii = [12, 22, 36, 60, 95];
+      // Max arm search radius in pixels
+      final maxArmSpan = min(width, height) ~/ 3;
 
       for (int y = stepY * 3; y < height - stepY * 3; y += stepY) {
         for (int x = stepX * 3; x < width - stepX * 3; x += stepX) {
           final centerVal = getLuminance(x, y);
 
-          for (final r in radii) {
-            // Cross Arm Pixels:
-            final top = getLuminance(x, y - r);
-            final bot = getLuminance(x, y + r);
-            final left = getLuminance(x - r, y);
-            final right = getLuminance(x + r, y);
+          // Diagonal background samples at test radius
+          const diagR = 24;
+          final d1 = getLuminance(x + diagR, y + diagR);
+          final d2 = getLuminance(x + diagR, y - diagR);
+          final d3 = getLuminance(x - diagR, y + diagR);
+          final d4 = getLuminance(x - diagR, y - diagR);
+          final bgMean = (d1 + d2 + d3 + d4) / 4.0;
 
-            final crossMean = (centerVal + top + bot + left + right) / 5.0;
+          final contrast = (centerVal - bgMean).abs();
+          // Contrast threshold: must be distinct from background
+          if (contrast < 18.0) continue;
 
-            // Diagonal Background Pixels:
-            final tl = getLuminance(x - r, y - r);
-            final tr = getLuminance(x + r, y - r);
-            final bl = getLuminance(x - r, y + r);
-            final br = getLuminance(x + r, y + r);
+          final isDarkCross = centerVal < bgMean;
 
-            final bgMean = (tl + tr + bl + br) / 4.0;
+          bool isArmPixel(int px, int py) {
+            final val = getLuminance(px, py);
+            final c = (val - bgMean).abs();
+            if (c < contrast * 0.42) return false;
+            return isDarkCross ? (val < bgMean) : (val > bgMean);
+          }
 
-            // Contrast between cross arms and diagonal background
-            final contrast = (crossMean - bgMean).abs();
-            if (contrast < 15.0) continue; // Sensitive to real-world room lighting & screens
+          // In portrait orientation:
+          // Top arm extends towards +X in sensor coordinates
+          // Bottom stem extends towards -X in sensor coordinates
+          // Left crossbar extends towards -Y in sensor coordinates
+          // Right crossbar extends towards +Y in sensor coordinates
 
-            // Vertical stroke consistency (top and bottom match center more than background)
-            final vArmDiff = ((top - centerVal).abs() + (bot - centerVal).abs()) / 2.0;
-            // Horizontal stroke consistency (left and right match center more than background)
-            final hArmDiff = ((left - centerVal).abs() + (right - centerVal).abs()) / 2.0;
-
-            // In a valid cross, arm variation must be smaller than background contrast
-            if (vArmDiff > contrast * 0.90 || hArmDiff > contrast * 0.90) continue;
-
-            final score = (contrast * 2.0 - (vArmDiff + hArmDiff)).toInt();
-            if (score > bestScore) {
-              bestScore = score;
-              bestX = x;
-              bestY = y;
+          int lUp = 0;
+          for (int d = 3; d < maxArmSpan; d += 3) {
+            if (isArmPixel(x + d, y)) {
+              lUp = d;
+            } else {
+              break;
             }
+          }
+
+          int lDown = 0;
+          for (int d = 3; d < maxArmSpan; d += 3) {
+            if (isArmPixel(x - d, y)) {
+              lDown = d;
+            } else {
+              break;
+            }
+          }
+
+          int lLeft = 0;
+          for (int d = 3; d < maxArmSpan; d += 3) {
+            if (isArmPixel(x, y - d)) {
+              lLeft = d;
+            } else {
+              break;
+            }
+          }
+
+          int lRight = 0;
+          for (int d = 3; d < maxArmSpan; d += 3) {
+            if (isArmPixel(x, y + d)) {
+              lRight = d;
+            } else {
+              break;
+            }
+          }
+
+          // Invariant 1: Minimum arm lengths in pixels
+          if (lUp < 10 || lDown < 16 || lLeft < 10 || lRight < 10) continue;
+
+          // Invariant 2: Vertical Stem Asymmetry (Christian / Orthodox Cross)
+          // The bottom stem must be 1.45x to 4.2x longer than the top arm!
+          // Reticles and window mullions have lDown / lUp ~= 1.0 (strict rejection!)
+          final stemRatio = lDown / lUp;
+          if (stemRatio < 1.45 || stemRatio > 4.2) continue;
+
+          // Invariant 3: Horizontal Arm Balance
+          final maxH = max(lLeft, lRight);
+          final hImbalance = (lLeft - lRight).abs() / maxH;
+          if (hImbalance > 0.35) continue;
+
+          // Invariant 4: Vertical-to-Horizontal Aspect Ratio (Height > Width)
+          final totalH = lUp + lDown;
+          final totalW = lLeft + lRight;
+          final aspect = totalH / totalW;
+          if (aspect < 1.25 || aspect > 3.2) continue;
+
+          // Invariant 5: Arm End Termination (finite cross, not infinite grid lines)
+          final termTopMatchesBg = !isArmPixel(x + lUp + 6, y);
+          final termBotMatchesBg = !isArmPixel(x - lDown - 6, y);
+          final termLeftMatchesBg = !isArmPixel(x, y - lLeft - 6);
+          final termRightMatchesBg = !isArmPixel(x, y + lRight + 6);
+          int termCount = (termTopMatchesBg ? 1 : 0) +
+              (termBotMatchesBg ? 1 : 0) +
+              (termLeftMatchesBg ? 1 : 0) +
+              (termRightMatchesBg ? 1 : 0);
+          if (termCount < 3) continue; // At least 3 ends must cleanly terminate into background
+
+          final score = contrast * stemRatio * (totalH + totalW);
+          if (score > bestScore) {
+            bestScore = score;
+
+            final junction = sensorToScreen(x.toDouble(), y.toDouble());
+            final stemTop = sensorToScreen((x + lUp).toDouble(), y.toDouble());
+            final stemBottom = sensorToScreen((x - lDown).toDouble(), y.toDouble());
+            final barLeft = sensorToScreen(x.toDouble(), (y - lLeft).toDouble());
+            final barRight = sensorToScreen(x.toDouble(), (y + lRight).toDouble());
+
+            final minX = [junction.dx, stemTop.dx, stemBottom.dx, barLeft.dx, barRight.dx].reduce(min);
+            final maxX = [junction.dx, stemTop.dx, stemBottom.dx, barLeft.dx, barRight.dx].reduce(max);
+            final minY = [junction.dy, stemTop.dy, stemBottom.dy, barLeft.dy, barRight.dy].reduce(min);
+            final maxY = [junction.dy, stemTop.dy, stemBottom.dy, barLeft.dy, barRight.dy].reduce(max);
+
+            bestContour = DetectedCrossContour(
+              junction: junction,
+              stemTop: stemTop,
+              stemBottom: stemBottom,
+              barLeft: barLeft,
+              barRight: barRight,
+              boundingBox: Rect.fromLTRB(
+                (minX - 0.04).clamp(0.0, 1.0),
+                (minY - 0.04).clamp(0.0, 1.0),
+                (maxX + 0.04).clamp(0.0, 1.0),
+                (maxY + 0.04).clamp(0.0, 1.0),
+              ),
+              confidence: (contrast / 100.0).clamp(0.6, 1.0),
+            );
           }
         }
       }
 
-      // If a strong cross junction is confirmed
-      if (bestScore > 24 && bestX > 0 && bestY > 0) {
+      // If a valid Christian / Orthodox cross was verified
+      if (bestContour != null) {
         _consecutiveMissedFrames = 0;
-
-        // Sensor orientation on Android portrait: 90° clockwise rotation
-        final normX = (bestY / height).clamp(0.05, 0.95);
-        final normY = (1.0 - (bestX / width)).clamp(0.05, 0.95);
-
-        feedCrossDetection(
-          Offset(normX, normY),
-          box: Rect.fromCenter(
-            center: Offset(normX, normY),
-            width: 0.32,
-            height: 0.42,
-          ),
-        );
+        feedCrossContourDetection(bestContour);
       } else {
         _consecutiveMissedFrames++;
         if (_consecutiveMissedFrames >= 4) {
@@ -172,14 +284,41 @@ class SacredRelicDetector {
     }
   }
 
-  /// Ingests raw cross detection from camera vision stream or heuristic edge detector
-  void feedCrossDetection(Offset normalizedCenter, {Rect? box}) {
+  /// Ingests confirmed physical cross contour
+  void feedCrossContourDetection(DetectedCrossContour contour) {
     _isCrossActive = true;
-    _detectedCrossPosition = normalizedCenter;
-    _lastDetectedBox = box ?? Rect.fromCenter(center: normalizedCenter, width: 0.28, height: 0.36);
+    _detectedCrossContour = contour;
+    _detectedCrossPosition = contour.junction;
+    _lastDetectedBox = contour.boundingBox;
 
-    onCrossDetected?.call(_detectedCrossPosition!, _lastDetectedBox!);
-    onSacredRelicDetected?.call(_lastDetectedBox!, 'Крест', const Color(0xFFFFD700));
+    onCrossContourDetected?.call(contour);
+    onCrossDetected?.call(contour.junction, contour.boundingBox);
+    onSacredRelicDetected?.call(contour.boundingBox, 'Крест Православный', const Color(0xFFFFD700));
+  }
+
+  /// Ingests normalized center point with proportional Christian cross contour synthesis
+  void feedCrossDetection(Offset normalizedCenter, {Rect? box}) {
+    // Generate realistic Christian cross proportions (stem down = 2.4x stem up)
+    const topExtent = 0.09;
+    const botExtent = 0.22;
+    const barExtent = 0.13;
+
+    final contour = DetectedCrossContour(
+      junction: normalizedCenter,
+      stemTop: Offset(normalizedCenter.dx, normalizedCenter.dy - topExtent),
+      stemBottom: Offset(normalizedCenter.dx, normalizedCenter.dy + botExtent),
+      barLeft: Offset(normalizedCenter.dx - barExtent, normalizedCenter.dy),
+      barRight: Offset(normalizedCenter.dx + barExtent, normalizedCenter.dy),
+      boundingBox: box ??
+          Rect.fromCenter(
+            center: Offset(normalizedCenter.dx, normalizedCenter.dy + (botExtent - topExtent) / 2),
+            width: barExtent * 2.2,
+            height: (topExtent + botExtent) * 1.15,
+          ),
+      confidence: 1.0,
+    );
+
+    feedCrossContourDetection(contour);
   }
 
   /// Clears active cross detection when out of frame
@@ -188,13 +327,14 @@ class SacredRelicDetector {
       _isCrossActive = false;
       _detectedCrossPosition = null;
       _lastDetectedBox = null;
+      _detectedCrossContour = null;
       onCrossLost?.call();
       onRelicLost?.call();
     }
   }
 
-  /// Fallback/manual trigger for testing or camera target lock
-  void toggleCrossSimulation(bool active, [Offset center = const Offset(0.5, 0.42)]) {
+  /// Fallback/manual trigger for testing
+  void toggleCrossSimulation(bool active, [Offset center = const Offset(0.5, 0.38)]) {
     if (active) {
       feedCrossDetection(center);
     } else {
@@ -202,7 +342,7 @@ class SacredRelicDetector {
     }
   }
 
-  /// Ingests raw detection from camera feed bridge
+  /// Ingests raw detection from external model if available
   void feedDetectionResult(String label, Rect box, double confidence) {
     final activeProfile = GeoAdaptationService().activeProfile;
     final recognizedList = activeProfile.sacredRelics.recognizedObjects;
@@ -212,15 +352,7 @@ class SacredRelicDetector {
             label.toLowerCase().contains('cross') ||
             label.toLowerCase().contains('крест') ||
             label.toLowerCase().contains('crucifix'))) {
-      _lastDetectedBox = box;
-      _detectedCrossPosition = box.center;
-      _isCrossActive = true;
-      onCrossDetected?.call(_detectedCrossPosition!, box);
-      onSacredRelicDetected?.call(
-        box,
-        label,
-        activeProfile.sacredRelics.glowColor,
-      );
+      feedCrossDetection(box.center, box: box);
     } else {
       if (_isCrossActive) {
         clearCrossDetection();

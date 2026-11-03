@@ -70,6 +70,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
   // Cross in Frame Detection & Golden Radiance State
   bool _isCrossInFrame = false;
   Offset _crossCenter = const Offset(0.5, 0.42);
+  DetectedCrossContour? _detectedCrossContour;
   Timer? _crossBanishTimer;
   DateTime _lastCrossChimeTime = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -108,6 +109,15 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     try {
       final relicDetector = SacredRelicDetector();
       relicDetector.startInferenceLoop();
+      relicDetector.onCrossContourDetected = (contour) {
+        _detectedCrossContour = contour;
+        _crossCenter = contour.junction;
+        if (!_isCrossInFrame) {
+          _isCrossInFrame = true;
+          _onCrossDetectedInFrame(contour.junction);
+        }
+        if (mounted) setState(() {});
+      };
       relicDetector.onCrossDetected = (center, box) {
         if (!_isCrossInFrame || (_crossCenter - center).distance > 0.04) {
           _isCrossInFrame = true;
@@ -119,6 +129,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
       relicDetector.onCrossLost = () {
         if (_isCrossInFrame) {
           _isCrossInFrame = false;
+          _detectedCrossContour = null;
           _crossBanishTimer?.cancel();
           if (mounted) setState(() {});
         }
@@ -454,6 +465,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     final relic = SacredRelicDetector();
     if (_isCrossInFrame) {
       relic.clearCrossDetection();
+      _detectedCrossContour = null;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           behavior: SnackBarBehavior.floating,
@@ -463,7 +475,8 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
         ),
       );
     } else {
-      relic.feedCrossDetection(const Offset(0.5, 0.40));
+      relic.feedCrossDetection(const Offset(0.5, 0.38));
+      _detectedCrossContour = relic.detectedCrossContour;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           behavior: SnackBarBehavior.floating,
@@ -553,10 +566,6 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                   // Dynamic Authentic Mode Overlays (with clean offsets, zero overlap!)
                   _buildModeSpecificOverlay(camera.activeFilter, spawner),
 
-                  // 1b. High-Fidelity 3D AR Entity Rendered in Physical Room Space
-                  if (spawner.currentEntity != null && spawner.currentEntity!.banishProgress < 1.0)
-                    _buildAREntityRenderer(spawner.currentEntity!),
-
                   // 3-Second Locking-on Ring HUD (when aiming at ghost)
                   if (_isLockingOn && spawner.currentEntity != null)
                     _buildTargetLockRing(spawner.currentEntity!),
@@ -612,6 +621,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                   // 2. Divine Golden Radiance Overlay emanating from Cross in Frame
                   if (_isCrossInFrame)
                     CrossRadianceOverlay(
+                      crossContour: _detectedCrossContour,
                       crossCenter: _crossCenter,
                       animationValue: _tickerController.value * 10.0,
                       targetEntity: spawner.currentEntity,
@@ -663,7 +673,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
           // 4b. Cross Detected Active Status Badge
           if (_isCrossInFrame)
             Positioned(
-              top: 50,
+              top: MediaQuery.of(context).padding.top + 54,
               left: 20,
               right: 20,
               child: Center(
@@ -1151,98 +1161,7 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
     );
   }
 
-  /// High-Fidelity 3D AR Entity Rendered in Physical Camera Space
-  Widget _buildAREntityRenderer(ProceduralEntityInstance entity) {
-    final screenSize = MediaQuery.of(context).size;
-    final screenX = entity.screenPosition.dx * screenSize.width;
-    final screenY = entity.screenPosition.dy * screenSize.height;
 
-    // Eerie levitation floating motion
-    final floatY = sin(_tickerController.value * 8.0) * 8.0;
-    final floatScale = 1.0 + 0.025 * cos(_tickerController.value * 6.0);
-
-    final double baseWidth = 260.0 * entity.scale * floatScale;
-    final double baseHeight = 220.0 * entity.scale * floatScale;
-
-    String? spriteAsset;
-    Color glowColor = Colors.white;
-    if (entity.archetype == 6.0) {
-      spriteAsset = 'assets/images/entities/haunt_drone_sprite.png';
-      glowColor = const Color(0xFFFFD166);
-    } else if (entity.archetype == 7.0) {
-      spriteAsset = 'assets/images/entities/paul_first_sprite.png';
-      glowColor = const Color(0xFF00E5FF);
-    } else if (entity.archetype == 5.0) {
-      spriteAsset = 'assets/images/entities/inverted_raven_sprite.png';
-      glowColor = const Color(0xFFFF5400);
-    } else if (entity.archetype == 4.0) {
-      spriteAsset = 'assets/images/entities/white_cemetery_watcher_sprite.png';
-      glowColor = const Color(0xFFE8F4F8);
-    } else if (entity.archetype == 3.0) {
-      spriteAsset = 'assets/images/entities/flying_head_phantom_sprite.png';
-      glowColor = const Color(0xFF52B788);
-    }
-
-    final opacity = (1.0 - entity.banishProgress).clamp(0.0, 1.0);
-
-    return Positioned(
-      left: screenX - (baseWidth / 2),
-      top: screenY - (baseHeight / 2) + floatY,
-      width: baseWidth,
-      height: baseHeight,
-      child: IgnorePointer(
-        child: Opacity(
-          opacity: opacity,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // 1. Spectral Ambient Aura
-              Container(
-                width: baseWidth * 0.85,
-                height: baseHeight * 0.85,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      glowColor.withValues(alpha: 0.20),
-                      glowColor.withValues(alpha: 0.05),
-                      Colors.transparent,
-                    ],
-                  ),
-                ),
-              ),
-
-              // 2. High-Resolution Cutout Sprite
-              if (spriteAsset != null)
-                Image.asset(
-                  spriteAsset,
-                  width: baseWidth,
-                  height: baseHeight,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
-
-              // 3. Exorcism Divine Radiance (Holy dissolution)
-              if (entity.banishProgress > 0.0)
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        colors: [
-                          Colors.amber.withValues(alpha: 0.85 * entity.banishProgress),
-                          Colors.white.withValues(alpha: 0.60 * entity.banishProgress),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   /// Sacred Exorcism Ritual with Orthodox Cross & Church Slavonic Prayers
   Widget _buildSacredExorcismRitualOverlay() {

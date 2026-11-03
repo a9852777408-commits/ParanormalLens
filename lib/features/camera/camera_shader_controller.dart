@@ -223,18 +223,52 @@ class ShaderPostProcessingPainter extends CustomPainter {
     }
 
     // 2. Draw Procedural Shadow Entity (if present)
-    if (entity != null && shadowShader != null) {
-      shadowShader!.setFloat(0, size.width);
-      shadowShader!.setFloat(1, size.height);
-      shadowShader!.setFloat(2, time);
-      shadowShader!.setFloat(3, entity!.seed);
-      shadowShader!.setFloat(4, entity!.archetype);
-      shadowShader!.setFloat(5, entity!.banishProgress);
-      shadowShader!.setFloat(6, entity!.screenPosition.dx);
-      shadowShader!.setFloat(7, entity!.screenPosition.dy);
+    if (entity != null) {
+      if (shadowShader != null) {
+        shadowShader!.setFloat(0, size.width);
+        shadowShader!.setFloat(1, size.height);
+        shadowShader!.setFloat(2, time);
+        shadowShader!.setFloat(3, entity!.seed);
+        shadowShader!.setFloat(4, entity!.archetype);
+        shadowShader!.setFloat(5, entity!.banishProgress);
+        shadowShader!.setFloat(6, entity!.screenPosition.dx);
+        shadowShader!.setFloat(7, entity!.screenPosition.dy);
 
-      final entityPaint = Paint()..shader = shadowShader;
-      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), entityPaint);
+        final entityPaint = Paint()..shader = shadowShader;
+        canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), entityPaint);
+      } else {
+        // Atmospheric procedural canvas fallback if fragment shader unavailable
+        _paintProceduralEntityFallback(canvas, size, entity!, time);
+      }
+    }
+  }
+
+  void _paintProceduralEntityFallback(Canvas canvas, Size size, ProceduralEntityInstance e, double t) {
+    final cx = e.screenPosition.dx * size.width;
+    final cy = e.screenPosition.dy * size.height;
+    final baseRadius = 75.0 * e.scale;
+    final alpha = (1.0 - e.banishProgress).clamp(0.0, 1.0);
+
+    // Ethereal dark smokey aura
+    final auraPaint = Paint()
+      ..shader = ui.Gradient.radial(
+        Offset(cx, cy),
+        baseRadius * 1.5,
+        [
+          (e.archetype == 4.0 ? const Color(0xFFE8F4F8) : const Color(0xFF0A0F0D))
+              .withValues(alpha: 0.65 * alpha),
+          Colors.transparent,
+        ],
+      );
+    canvas.drawCircle(Offset(cx, cy), baseRadius * 1.5, auraPaint);
+
+    // Glowing eyes (Haunt drone, etc.)
+    if (e.archetype == 6.0) {
+      final eyePaint = Paint()
+        ..color = const Color(0xFFFFD166).withValues(alpha: 0.90 * alpha)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 4.0);
+      canvas.drawCircle(Offset(cx - 15.0 * e.scale, cy - 25.0 * e.scale), 4.0, eyePaint);
+      canvas.drawCircle(Offset(cx + 15.0 * e.scale, cy - 25.0 * e.scale), 4.0, eyePaint);
     }
   }
 
