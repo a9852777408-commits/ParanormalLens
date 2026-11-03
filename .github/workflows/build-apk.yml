@@ -63,28 +63,30 @@ jobs:
         continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.8
-          name: "PL v1.0.8 - True 3D AR Spatial Anchoring & Strict Physical Cross Contour Illumination"
+          tag_name: v1.0.9
+          name: "PL v1.0.9 - High-Fidelity Living AR Apparitions & Studio Detailed Entities"
           body: |
-            ### ☦️ PL v1.0.8 - True 3D AR Spatial Anchoring & Physical Cross Illumination
-            - **Strict Christian / Orthodox Cross Detection & Physical Contour Illumination**:
-              - Eliminates 100% of false positives on camera crosshairs, reticles, window frames, and tile grids via 5-invariant geometric validation ($L_{bot}/L_{top} \in [1.45, 4.2]$, $H/W \ge 1.25$, symmetric crossbars, terminated arm ends, clear diagonal background).
-              - Removed synthetic drawn cross overlay and 16 full-screen blinding sunburst rays.
-              - The physical contour of the detected cross is illuminated with a localized golden neon glow, soft aura, and compact holy halo around the cross junction.
-            - **True 3D AR Spherical Room Spatial Anchoring**:
-              - Phantoms are firmly anchored to fixed spherical 3D room coordinates (`worldAzimuth`, `worldElevation`, `distance`) in physical room space.
-              - Smooth, drift-free sensor fusion (gyroscope angular velocity integration + accelerometer gravity pitch reference).
-              - When turning the phone away, the entity moves off-screen and directional indicators appear (◀ АНОМАЛИЯ СЛЕВА / СПРАВА ▶). When turning back, the phantom stays in the exact same physical spot in the room.
-              - Halts endless re-scanning: phantoms are no longer glued to the viewfinder center.
-            - **Cinematic Volumetric Procedural Shader Rendering**:
-              - Removed flat 2D sticker cutouts from the camera viewfinder.
-              - Entities are rendered procedurally through the GPU fragment shader with organic fluid ectoplasm, breathing motion, smoke fbm noise, glowing demonic eyes, and holy ember dissolution.
-            - **UI Layout & Non-Overlapping HUD**:
-              - Moved the cross status badge cleanly below the top HUD action bar (`top: MediaQuery.padding.top + 54`) to prevent any element overlap.
+            ### 👻 PL v1.0.9 - High-Fidelity Living AR Apparitions & Detailed Entities
+            - **High-Fidelity Detail for All 5 Major Entities**:
+              - 🦇 **Haunt Drone (Тёмный Летун)**: Studio-isolated winged gargoyle demon with massive arched wings, muscular torso, demonic horns, and dual burning yellow-hot eye flares that flicker with living fire.
+              - 🕯️ **Ghost of Emperor Paul I (Призрак Павла I)**: Authentic imperial phantom in an 18th-century tricorn hat with cockade, military officer uniform with epaulets, sash, and star cross order, holding a brass candlestick with a warm flickering lit candle.
+              - 🦅 **Inverted Raven (Инвертированный Ворон)**: Photorealistic upside-down perched raven with detailed black plumage, talons, and a piercing amber glowing eye glint.
+              - 👤 **White Cemetery Watcher (Белый Страж Кладбища)**: Translucent, ethereal milky-white humanoid female silhouette surrounded by a soft volumetric celestial aura.
+              - 💀 **Flying Morok (Летающий Морок)**: Detailed floating human skull with distinct eye sockets and jaw teeth, with a billowing vortex of black ectoplasm smoke.
+            - **Living AR Motion & Physics Engine**:
+              - Fluid organic levitation ($\sin(t)$ hover), horizontal drift, breathing scale pulsation, and gentle spectral tilt.
+              - Multi-layered glowing spectral auras (amber, cyan, fiery orange, celestial white, jade ectoplasm).
+              - Living specular flares at eye levels and the candle flame with organic light noise.
+            - **Zero Box Borders & Seamless AR Blending**:
+              - All concept sprites processed with precision alpha feathering; zero rectangular photo frames or HUD artifacts.
+              - Adapts dynamically to active camera filter (Night Vision phosphor luminescence, Thermal false-color heat, VHS tape artifacts, Normal).
+            - **True 3D AR Spatial Anchoring & Cross Contour Illumination**:
+              - Firmly anchored to 3D room coordinates.
+              - Physical golden neon contour illumination on real crosses with zero false positives.
             
             **Direct Download:**
-            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.8/PL.apk)
-            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.8/PL-release.apk)
+            - [PL.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.9/PL.apk)
+            - [PL-release.apk](https://github.com/a9852777408-commits/ParanormalLens/releases/download/v1.0.9/PL-release.apk)
           files: |
             build/dist/PL.apk
             build/dist/PL-debug.apk

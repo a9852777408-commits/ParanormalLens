@@ -8,6 +8,7 @@ import 'core/services/geo_adaptation_service.dart';
 import 'features/camera/camera_shader_controller.dart';
 import 'features/bestiary/bestiary_screen.dart';
 import 'features/entity_engine/procedural_entity_spawner.dart';
+import 'features/entity_engine/living_ar_entity_view.dart';
 import 'features/entity_engine/suspense_engine.dart';
 import 'features/prank/prank_engine.dart';
 import 'features/vision/sacred_relic_detector.dart';
@@ -553,15 +554,23 @@ class _CameraViewfinderScreenState extends State<CameraViewfinderScreen> with Si
                         : const SimulatedViewfinder(),
                   ),
 
-                  // GLSL Shader Post-Processing (Grain, Scanlines, Procedural Shadows)
+                  // GLSL Shader Post-Processing (Grain, Scanlines, Ambient Noise)
                   CustomPaint(
                     painter: ShaderPostProcessingPainter(
                       shader: camera.getActiveShader(),
                       time: _tickerController.value * 1000.0,
-                      entity: spawner.currentEntity,
+                      entity: null, // Shader processes camera feed; entity rendered with high fidelity below
                       shadowShader: camera.proceduralShadowShader,
                     ),
                   ),
+
+                  // Living High-Fidelity 3D AR Entity Apparition in Physical Room Space
+                  if (spawner.currentEntity != null)
+                    LivingAREntityView(
+                      entity: spawner.currentEntity!,
+                      animationValue: _tickerController.value * 10.0,
+                      cameraFilter: camera.activeFilter,
+                    ),
 
                   // Dynamic Authentic Mode Overlays (with clean offsets, zero overlap!)
                   _buildModeSpecificOverlay(camera.activeFilter, spawner),
